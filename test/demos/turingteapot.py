@@ -2,8 +2,9 @@
 # No functions are allowed to mutate the app state.
 import numpy as np
 import c
+import TapeyTeapots.main as panda3dsetup
 
-def init_state(): # Start simple.
+def simple_init_state(colored_lights=True): # Start simple.
     cam44 = np.identity(4)
     # 4x4 matrixes, as column vectors, are [x, y, z, origin]
     cam44[:,3] = [0,-5,0,1] # position. Camera seems to point in the y direction.
@@ -13,17 +14,21 @@ def init_state(): # Start simple.
     the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_static, 'children':{}}
     render = {'mat44':np.identity(4),
               'children': {'the_mesh':the_mesh, 'the_mesh_static':the_mesh_static}}
+    if colored_lights:
+        lights = [{'pos':[4.0, -32.0, 0.0],'color':[1,0,0,1]},
+                  {'pos':[0.0, -32.0, 4.0],'color':[0,1,0,1]},
+                   {'pos':[0.0, -32.0, 0.0],'color':[0,0,1,1]}]
+    else:
+        lights = [{'pos':[0,-32,0],'color':[1,1,1,1]}]
     return {'render':render,
-            'lights':[{'pos':[4.0, -32.0, 0.0],'color':[1,0,0,1]},
-                      {'pos':[0.0, -32.0, 4.0],'color':[0,1,0,1]},
-                       {'pos':[0.0, -32.0, 0.0],'color':[0,0,1,1]}],
-            #'camera':{'pos':[0,-10,0],'look':[0,1,0],'fov':1.25}
+            'lights':lights,
             'camera':{'mat44':cam44}}
 
-def makeRandomMesh():
-    # Random mesh fun.
-    nVert = int(np.random.random()*128)+3
-    nFace = int(np.random.random()*512)+3
+def makeRandomMesh(nVert=None, nFace=None):
+    if nVert is None:
+        nVert = int(np.random.random()*128)+3
+    if nFace is None:
+        nFace = int(np.random.random()*512)+3
 
     verts = np.random.random([nVert,3])
     faces = (np.random.random([nFace,3])*(nVert-2)).astype(np.int32)
@@ -48,9 +53,9 @@ def makeRandomMesh():
 
     return out
 
-def make_random_text():
+def make_random_text(prepend='RAND'):
     out = {}
-    out['string'] = str('RAND')+str(np.random.random())+str('OM')
+    out['string'] = str(prepend)+str(np.random.random())+str('OM')
     return out
 
 def print_inputs(mouse_state, key_state, mouse_clicks, key_clicks): # Debug.
@@ -76,7 +81,7 @@ def print_inputs(mouse_state, key_state, mouse_clicks, key_clicks): # Debug.
         if key_clicks[k]:
             print('kclick:',k)
 
-def everyFrame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+def everyFrame_simple_demo(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
     app_state = app_state.copy()
     app_state['nframe'] = app_state.get('nframe',0)+1
     print_inputs(mouse_state, key_state, mouse_clicks, key_clicks)
@@ -85,3 +90,7 @@ def everyFrame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, scre
         app_state = c.assoc_in(app_state, ['render', 'children', 'some_text', 'text'], make_random_text())
 
     return app_state
+
+def panda3d_basic_render_ui_test():
+    # Can panda3d draw what we want it to and capture user inputs?
+    x = panda3dsetup.Demo(simple_init_state(), everyFrame_simple_demo)

@@ -6,16 +6,17 @@ from panda3d.core import *
 from direct.showbase.ShowBase import ShowBase
 from direct.interval.IntervalGlobal import *
 
-import high_vanilla
 import time
-from yuckymutate import scenesync, mousekey, reload
+from TapeyTeapots.yuckymutate import scenesync, mousekey
+import reload
 import numpy as np
 
 class Demo:
 
-    def __init__(self):
+    def __init__(self, initial_state, every_frame_fn):
 
-        self.appstate = high_vanilla.init_state()
+        self.appstate = initial_state
+        self.every_frame_fn = every_frame_fn
         self.appstate['elapsed_frames'] = 0
         self.old_appstate = {}
         self.showbase = showbase = ShowBase()
@@ -49,7 +50,7 @@ class Demo:
         mousekey.update_mouse_pos(self.mouse_state, self.screen_state)
 
         try:
-            appstate1 = high_vanilla.everyFrame(self.appstate, self.mouse_state, self.key_state, self.mouse_clicks, self.key_clicks, self.screen_state)
+            appstate1 = self.every_frame_fn(self.appstate, self.mouse_state, self.key_state, self.mouse_clicks, self.key_clicks, self.screen_state)
         except Exception:
             print('Every Frame Error:')
             print(traceback.format_exc())
@@ -86,5 +87,3 @@ class Demo:
                 time.sleep(3)
 
         return task.cont
-if __name__ == '__main__':
-    demo = Demo()

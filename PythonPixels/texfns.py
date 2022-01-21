@@ -1,6 +1,6 @@
 # Higher level fns, inspired by blender.
 import numpy as np
-import texarray as tnp
+import PythonPixels.texarray as tnp
 
 def white_noise(coords):
     return np.random.randn(coords.shape[0],coords.shape[1])

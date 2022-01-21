@@ -1,0 +1,12 @@
+This is the mesh modelling tool, this biggest part of Turing Create. **It is nonfunctional as of Jan 19 2022**.
+
+**Workflow**
+Like the blender mesh modeler it will have functions such as, extrude, split verts, move rotate scale geometry, etc. These will be accessible with hotkeys and/or a graphical GUI. But every action will be saved as a line of python code, which can then be edited in an external editor and placed into a for loop, etc. The external editor needs to handle disk modifications in real-time!
+
+Each elementary transformation, such as extruding a face or moving a vertex, carries with it a (usually nonlinear) coordinate transformation. Suppose you extrude Pinocchio's nose. Then you place a small freckle on the surface of the nose. If he tells another lie and the nose gets extruded further you want the freckle to be dragged along rather than staying fixed in space. When adding the freckle, you choose the final location of the freckle and which coordinate xforms you want it attached to. The software then inverts the xforms (using a kind of pseudoinverse if necessary) to calculate the location(s) before the xforms. It then puts the original values into the python code it generates, as well as which xform(s) it needs to apply. When Pinoccio tells his next lie, the nose extrusion xform changes and the freckle stays attached to the end of the nose as it should.
+
+A small amount of Python can amplify the GUI. When a flexible surface changes shape, sometimes surface decals bend and stretch with the underlying surface (like ink on silly putty) and sometimes they only move relative to each-other (like snake scales). In the first case you need to attach the surface features to the shape distorting function. However, in the latter case you would only attach a set of surface points and rotation frames, and then tell Python to place undistorted objects at the transformed location of the points. This is an example where a little external coding significantly amplifies the flexibility.
+
+Some geometry is dependent on resolution. For example, if you write function that makes a cylinder, the function will have to make a mesh with a fixed number of faces. At higher resolution the mesh will look better but working on it can get slower. Thus it is better to take in some "resolution" global parameter and set it low for design and set it high for the render if performance becomes an issue. Precomputation is another goal to reduce the load on the cpu.
+
+Support for animations is a long-term goal.

@@ -1,8 +1,14 @@
-#Handles datastructures such as trees in a non-mutation way.
-# Uses "is" to check for updates.
+#Handles datastructures such as trees in a non-mutation way, much like clojure.
+# Uses "is" to check for updates. Does not work on tuples, only use lists and dicts.
 
-def assoc(x, k, v): # Dict-only.
-    if x.get(k,None) is v:
+def cget(x, k, default):
+    # Works on both lists and dicts.
+    if type(x) is dict:
+        return x.get(k,default)
+    return x[k]
+
+def assoc(x, k, v):
+    if cget(x,k,None) is v:
         return x
     x1 = x.copy()
     x1[k] = v
@@ -13,7 +19,7 @@ def get_in(x,ks, not_found=None):
         return not_found
     if len(ks)==0:
         return x
-    return get_in(x.get(ks[0],None),ks[1:],not_found)
+    return get_in(cget(x,ks[0],None),ks[1:],not_found)
 
 def assoc_in(x,ks, v):
     if x is None:
@@ -21,15 +27,15 @@ def assoc_in(x,ks, v):
     if len(ks) == 0:
         return v
     k0 = ks[0]
-    branch1 = assoc_in(x.get(k0,None),ks[1:],v)
-    if branch1 is x.get(k0,None):
+    branch1 = assoc_in(cget(x,k0,None),ks[1:],v)
+    if branch1 is cget(x,k0,None):
         return x
     x1 = x.copy()
     x1[k0] = branch1
     return x1
 
 def update(x,k,f):
-    val = x.get(k,None)
+    val = cget(x,k,None)
     val1 = f(val)
     if val1 is val:
         return x
