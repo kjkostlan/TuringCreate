@@ -1,4 +1,4 @@
-# Tests the non-mutation.
+# Tests the non-mutation of c.
 import c
 
 def _pairwise(pairs):
