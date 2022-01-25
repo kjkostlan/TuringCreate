@@ -1,9 +1,10 @@
 # Automatic testing fns either work or break.
 # Demo testing fns require human judgement.
-import importlib, inspect, traceback
+import importlib, inspect, traceback, time
+import reload
 
 module_list_demos = ['test.demos.pythonpixels', 'test.demos.turingteapot']
-module_list_auto = ['test.auto.nomutate']
+module_list_auto = ['test.auto.tnomutate', 'test.auto.tgeom']
 
 def _mergedicts(dict_list):
     out = {}
@@ -25,6 +26,16 @@ def _module_to_method_objs(module_string, include_private=False): # also imports
             fn_objs.append(fn_obj)
     return dict(zip(fullpath_strs, fn_objs))
 
+def run_f_catch_err(f_obj, print_reports=True):
+    # Runs f, catching and reporting any errors. Returns false if an error is thrown, else the fns result.
+    result = False
+    try:
+        result = f_obj()
+    except Exception:
+        if print_reports:
+            traceback.print_exc()
+    return result
+
 def report_broken(print_reports = True):
     # Automatic tests the compute can tell if it works or not.
     #method_strings = _vcat([_list_methods_strings(m) for m in module_list_auto])
@@ -36,21 +47,41 @@ def report_broken(print_reports = True):
 
     failures = []
     for fname, fobj in fn_name2obj.items():
-        try:
-            result = fobj()
-            if not result:
-                failures.append(fname)
-        except Exception:
-            if print_reports:
-                traceback.print_exc()
+        result = run_f_catch_err(fobj)
+        if not result:
             failures.append(fname)
     if print_reports:
         if len(failures)>0:
             for f in failures:
                 print('Failed:', f)
         else:
-            print('all tests passed!')
+            print('all', len(fn_name2obj), 'tests passed!')
     return failures
+
+def broken_record(delay_seconds = 1.0):
+    # Keeps running the broken tests, waiting delay_seconds every loop.
+    # It only reruns the tests broken on the first run.
+    # Use while working on a test to avoid having to constantly run the test.
+    auto_fnss = [_module_to_method_objs(m_string) for m_string in module_list_auto]
+    fn_name2obj = _mergedicts(auto_fnss)
+    failures = report_broken(print_reports = True)
+    if len(failures) == 0:
+        print('No need to re-try, all tests working.')
+        return
+    while True:
+        reload.reload_user_py_catcherr()
+        auto_fnss = [_module_to_method_objs(m_string) for m_string in module_list_auto] # TODO: only in the module(s) that have failures.
+        fn_name2obj = _mergedicts(auto_fnss) # Need to refresh this every time reload is called.
+        all_passed = True
+        for f in failures:
+            f_obj = fn_name2obj[f]
+            if not run_f_catch_err(f_obj):
+                print('Test failure:', f)
+                all_passed = False
+        if all_passed:
+            print('All broken tests fixed, exiting test loop.')
+            break
+        time.sleep(delay_seconds)
 
 def list_demos():
     # Map from fname to fn.

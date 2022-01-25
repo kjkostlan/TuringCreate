@@ -44,3 +44,10 @@ def reload_user_py_modules(print_reload=True, throw_errors=True):
             if m is not None:
                 importlib.reload(m)
                 file2contents[f] = new_contents
+
+def reload_user_py_catcherr(print_reload=True): # Catches and prints errors, does not throw errors.
+    try:
+        reload_user_py_modules(print_reload=True)
+    except Exception:
+            print('error when load/reloading modules:')
+            traceback.print_exc()

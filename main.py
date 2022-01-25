@@ -9,13 +9,16 @@ if __name__ == "__main__":
         for i in range(4):
             print('')
         x = str(input('Select what to run, or "h" for help:')).lower().strip()
+        reload.reload_user_py_catcherr()
         if x=='':
             x = 'h'
         try:
             if x=='h':
-                print('"t" to run all unit tests, "d" to list demos, "d 123" to run the 123\'rd demo, "e xyz" to eval xyz, q to quit.')
+                print('"t" to run all unit tests ("t r" to repeat), "d" to list demos, "d 123" to run the 123\'rd demo, "e xyz" to eval xyz, q to quit.')
             elif x=='t':
                 tests.report_broken()
+            elif x=='t r':
+                tests.broken_record()
             elif x=='q':
                 quit()
             elif x=='d':
@@ -30,9 +33,4 @@ if __name__ == "__main__":
                 print('Not recognized option, use "h" for help.')
         except Exception:
                 print('error:')
-                traceback.print_exc()
-        try:
-            reload.reload_user_py_modules(print_reload=True)
-        except Exception:
-                print('error when load/reloading modules:')
                 traceback.print_exc()
