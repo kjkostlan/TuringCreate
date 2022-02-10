@@ -1,6 +1,6 @@
 # Reload the python scripts.
 import importlib
-import os
+import os, traceback
 
 file2contents = dict()
 
