@@ -1,5 +1,6 @@
 # Tests basic geometry operations.
 import numpy as np
+import math
 import TapeyTeapots.meshops.coregeom as coregeom
 
 ################################ Enables approximate matching ##########################
@@ -27,10 +28,13 @@ def _inty(x, precision=1e-4):
         return _inty(list(x))
     if type(x) is str or (x is False) or (x is True):
         return x
+    if math.isnan(x):
+        return 'nan'
     return int(np.round(x/precision))
 
 def approx_eq(x1, x2, precision=1e-4):
     # Uses inty, but also runs the precision at lower values incase we have a bad bounrady condition.
+    # Works on tree datastructures, allowing more flexibility than numpy.allclose.
     phi = 0.5*(1.0+np.sqrt(5.0))
     
     precision1 = precision
@@ -94,7 +98,33 @@ def test_basics():
     ratios = geom_3xk_project_line0[0,:]/geom_3xk_project_line0[1,:]
     line_proj_test = np.std(ratios)<1e-6
 
-    return (linetest and linetest1 and planetest and plane_proj_test and line_proj_test)
+    # Line-line closest:
+    pt0 = np.random.randn(3)
+    dir0 = np.random.randn(3)
+    pt1 = np.random.randn(3,7)
+    dir1 = np.random.randn(3,7)
+
+    [closest_0, closest_1] = coregeom.line_line_closest(pt0, dir0, pt1, dir1)
+    closest_0 = closest_0[:,5]
+    closest_1 = closest_1[:,5]
+    pt1 = pt1[:,5]
+    dir1 = dir1[:,5]
+    min_norm_green = coregeom.dists(closest_0, closest_1)[0]
+    eps = 1e-3 # must be > than sqrt(precision).
+    norms = [coregeom.dists((closest_0-eps*dir0), closest_1)[0], coregeom.dists((closest_0+eps*dir0), closest_1)[0],
+             coregeom.dists(closest_0, (closest_1-eps*dir1))[0], coregeom.dists(closest_0, (closest_1+eps*dir1))[0]]
+    line_line_closest_test = np.min(norms) > min_norm_green
+
+    # Line-plane intersection:
+    plane_origin = np.random.randn(3)
+    plane_normal = np.random.randn(3)
+    line_origins = np.random.randn(3,16)
+    line_directions = np.random.randn(3,16)
+    intersects = coregeom.line_plane_intersection(plane_origin, plane_normal, line_origins, line_directions)
+    line_plane_project = approx_eq(coregeom.project_to_plane(plane_origin, plane_normal, intersects), intersects)
+    line_plane_project = line_plane_project and approx_eq([0.0,0.0,0.0],np.cross(line_origins[:,7]-intersects[:,7],line_directions[:,7]))
+
+    return (linetest and linetest1 and planetest and plane_proj_test and line_proj_test and line_line_closest_test and line_plane_project)
 
 def test_triangles():
     # Fun with triangles.
@@ -137,6 +167,12 @@ def test_triangles():
     bary = coregeom.barycentric(rand_tri, rand_pts)
     rand_pts_green = coregeom.unbarycentric(rand_tri, bary)
     tests.append(approx_eq(rand_pts, rand_pts_green))
+
+    # Triangle projection test:
+    right_tri = np.transpose([[0,0,0],[1,0,0],[0,1,0]])
+    pts0 = -np.random.random([3,16])
+    pts1 = coregeom.triangle_project(right_tri, pts0)
+    tests.append(approx_eq(pts1, np.zeros_like(pts1)))
 
     return is_all_true(tests)
 

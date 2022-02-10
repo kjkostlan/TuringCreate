@@ -4,7 +4,7 @@ import importlib, inspect, traceback, time
 import reload
 
 module_list_demos = ['test.demos.pythonpixels', 'test.demos.turingteapot']
-module_list_auto = ['test.auto.tnomutate', 'test.auto.tgeom']
+module_list_auto = ['test.auto.tnomutate', 'test.auto.tgeom', 'test.auto.tmesh', 'test.auto.tquat43']
 
 def _mergedicts(dict_list):
     out = {}
