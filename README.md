@@ -28,6 +28,8 @@ CurvesOfCode: A 2d vector tool inspired by Inkscape, but it may not be worth it 
 
 LatexLines: Word processing, probably using pyLatex.
 
-FunctionalFigures: Matplotlib wrapper.
+FunctionalFigures: Making 2d and 3d plots. Based on Matplotlib most likely.
+
+ComputeClefs: Musical composition.
 
 ExternEngineer: Interface with other programs by calling API commands or even just sending out mouse and keyboard controls. The eventual goal is to add our tools to a GUI-only software.
