@@ -80,7 +80,7 @@ def project_to_mesh(mesh, query_3xn):
 @numba.jit(nopython=True)
 def _accum1D(where, weight): # Is there a vanilla numpy way to do this?
     ix = np.max(where)
-    out = np.zeros(ix)
+    out = np.zeros(ix+1)
     n = where.size
     for i in range(n):
         wi = where[i]
@@ -90,18 +90,19 @@ def _accum1D(where, weight): # Is there a vanilla numpy way to do this?
 def _accum2D(where0, where1, weight):
     stride = np.max(where0) + 1
     where = where0 + stride*where1
-    unwrapped = _accum1D(where, weight) #[(0,0), (1,0), (2,0) ... (0,1), (1,1), (2,1) ...]
-    return np.reshape(unwrapped, [np.max(where0), np.max(where1)], order='F')
+    unwrapped_short = _accum1D(where, weight) #[(0,0), (1,0), (2,0) ... (0,1), (1,1), (2,1) ...]
+    unwrapped = np.zeros(stride*(np.max(where1)+1)); unwrapped[0:unwrapped_short.size] = unwrapped_short
+    return np.reshape(unwrapped, [stride, np.max(where1)+1], order='F')
 
 def get_edges(mesh):
-    # Edges are [2,n], and the bottom row is counter-clockwise to the top row around the face.
+    # Edges are [2,3*nFace], and the bottom row is counter-clockwise to the top row around the face.
     # There are three times the number of edges as there are faces.
     faces = mesh['faces']
     n = faces.shape[1]
     edges = np.zeros([2,3*n],dtype=np.int64)
     edges[0,0:n] = faces[0,:]; edges[1,0:n] = faces[1,:]
-    edges[0,n+1:2*n] = faces[1,:]; edges[1,n+1:2*n] = faces[2,:]
-    edges[0,2*n+1:3*n] = faces[2,:]; edges[1,2*n+1:3*n] = faces[0,:]
+    edges[0,n:2*n] = faces[1,:]; edges[1,n:2*n] = faces[2,:]
+    edges[0,2*n:3*n] = faces[2,:]; edges[1,2*n:3*n] = faces[0,:]
     return edges
 
 @numba.jit(nopython=True)
@@ -146,11 +147,13 @@ def leaky_verts(mesh):
     # Includes: More than two faces meeting at an edge, disagreeing normals, and holes.
 
     nVert = mesh['verts'].shape[1]
+    if np.max(mesh['faces']) > nVert-1:
+        raise Exception('Invalid mesh, faces ixs out of bounds (i.e. referring to verts that do not exist).')
 
     faces = mesh['faces']
-    edges = get_edges(mesh) #[2 n]
+    edges = get_edges(mesh) #[2 3*faces]
 
-    edge_matrix = _accum2D(edges[0,:], edges[1,:], weight) # [vert0, vert1].
+    edge_matrix = _accum2D(edges[0,:], edges[1,:], np.ones([edges.shape[1]])) # [vert0, vert1], is there an edge from vert0 to vert1.
     all_edges = np.zeros([nVert,nVert])
     all_edges[0:edge_matrix.shape[0],0:edge_matrix.shape[1]] = edge_matrix
 
@@ -160,7 +163,7 @@ def leaky_verts(mesh):
 
     bad_pairs = np.argwhere(too_many+no_reciprocity>0.5) # [k 2]
 
-    bad_ixs = np.asarray(set(np.reshape(bad_pairs,[bad_pairs.size])))
+    bad_ixs = np.asarray(list(set(np.reshape(bad_pairs,[bad_pairs.size]))))
     return bad_ixs
 
 ################# Mesh -> Mesh [modification fns] ################

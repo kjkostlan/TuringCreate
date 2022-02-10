@@ -25,10 +25,10 @@ def _add_square(mesh, ixs_ccw, face_ix, u0=0.0, v0=0.0, u1=1.0, v1=1.0):
 def cube():
     # A cube can become anything!
     mesh = {}
-    mesh['verts'] = np.transpose([[-1,-1,-1],[-1,-1,+1],[-1,+1,-1],[-1,+1,+1],[+1,-1,-1],[+1,-1,+1],[+1,+1,-1],[+1,+1,+1]])
+    mesh['verts'] = np.transpose([[-1,-1,-1],[+1,-1,-1],[-1,+1,-1],[+1,+1,-1],[-1,-1,+1],[+1,-1,+1],[-1,+1,+1],[+1,+1,+1]])
     mesh['faces'] = np.zeros([3,12], dtype=np.int64)
     mesh['uvs'] = np.zeros([3,12,2,1])
-    face_pairs = [[[0, 2, 6, 4], 1], [[0, 1, 5, 4], 2], [[0, 1, 3, 2], 4]]
+    face_pairs = [[[0, 4, 6, 2], 1], [[0, 1, 5, 4], 2], [[0, 2, 3, 1], 4]]
     for i in range(len(face_pairs)):
         _add_square(mesh, face_pairs[i][0], 4*i)
         _add_square(mesh, np.flip(face_pairs[i][0])+face_pairs[i][1], 4*i+2)
@@ -41,32 +41,48 @@ def sphere(resolution=32):
     theta = np.linspace(0,2.0*np.pi*fencepost,resolution)
     phi = np.linspace(-0.5*np.pi,0.5*np.pi,resolution)
 
-    x = np.outer(np.cos(theta), np.sin(phi))
-    y = np.outer(np.sin(theta), np.sin(phi))
-    z = np.outer(np.ones_like(theta),np.cos(phi))
+    # Poles are at end.
+    x = np.outer(np.cos(theta), np.sin(phi[1:-1]))
+    y = np.outer(np.sin(theta), np.sin(phi[1:-1]))
+    z = np.outer(np.ones_like(theta),np.sin(phi[1:-1]))
 
     mesh = {}
-    mesh['verts'] = np.zeros(3,resolution*resolution)
-    mesh['verts'][0,:] = np.reshape(x, resolution*resolution, order='C') # Phi will change faster than theta.
-    mesh['verts'][1,:] = np.reshape(y, resolution*resolution, order='C')
-    mesh['verts'][2,:] = np.reshape(z, resolution*resolution, order='C')
-    mesh['faces'] = np.zeros([3, resolution*resolution], dtype=np.int64)
+    mesh['verts'] = np.zeros([3,resolution*(resolution-2)+2])
+    mesh['verts'][0,0:-2] = np.reshape(x, resolution*(resolution-2), order='C') # Phi will change faster than theta.
+    mesh['verts'][1,0:-2] = np.reshape(y, resolution*(resolution-2), order='C')
+    mesh['verts'][2,0:-2] = np.reshape(z, resolution*(resolution-2), order='C')
+    mesh['verts'][:,-2] = [0,0,-1]; mesh['verts'][:,-1] = [0,0,1] # South pole.
+    nFace = 2*resolution*(resolution-3)+2*resolution
+    mesh['faces'] = np.zeros([3,nFace], dtype=np.int64)
+    mesh['uvs'] = np.zeros([3, nFace,2,1])
     face_ix = 0
+    stride = resolution-2
     for i in range(resolution): # thetas
-        for j in range(resolution): # phis
-            i1 = (i+1)%resolution
-            j1 = (j+1)%resolution
-            ixs_ccw = [i*resolution+j,i1*resolution+j, i*resolution+j1, i1*resolution+j1]
+        i1 = (i+1)%resolution
+        # South pole:
+        ixs_ccw = [resolution*(resolution-2), i1*stride+1, i*stride+1]
+        _add_tri(mesh, ixs_ccw, face_ix, u0=0.5, v0=0.0, u1=theta[i1]/2.0*np.pi, v1=phi[1]/np.pi+0.5, u2=theta[i]/2.0*np.pi, v2=phi[1]/np.pi+0.5)
+        face_ix = face_ix+1
+
+        for j in range(1,resolution-2): # phis
+            j1 = j+1
+            ixs_ccw = [i*stride+j, i1*stride+j, i1*stride+j1, i*stride+j1]
             _add_square(mesh, ixs_ccw, face_ix, u0=theta[i]/2.0/np.pi, v0=phi[j]/np.pi+0.5, u1=theta[i1]/2.0*np.pi, v1=phi[j1]/np.pi+0.5)
             face_ix = face_ix+2
 
-    return trimesh.merge_nearby(mesh, reldist = 0.01/resolution) # There is degeneracy at the poles.
+        # North pole:
+        ixs_ccw = [resolution*(resolution-2)+1, i*stride+(resolution-2), i1*stride+(resolution-2)]
+        _add_tri(mesh, ixs_ccw, face_ix, u0=0.5, v0=1.0, u1=theta[i]/2.0*np.pi, v1=phi[resolution-2]/np.pi+0.5, u2=theta[i1]/2.0*np.pi, v2=phi[resolution-2]/np.pi+0.5)
+        face_ix = face_ix+1
+
+    # Extra verts in the poles not attached to edges, oh well.
+    return mesh
 
 def cylinder(resolution=32, tallness=1.0):
     # Includes two central points.
     resolution = max(resolution,3)
     mesh = {}
-    mesh['verts'] = np.zeros(3,2*resolution+2)
+    mesh['verts'] = np.zeros([3,2*resolution+2])
     mesh['verts'][:,0] = [0,0,-tallness] # Center of bottom face.
     mesh['verts'][:,1] = [0,0,tallness] # Center of top face.
 
@@ -92,7 +108,7 @@ def cylinder(resolution=32, tallness=1.0):
     for i in range(resolution): # side faces
         i1 = (i+1)%resolution
         ixs_ccw = [i+2, i1+2, i1+resolution+2, i+resolution+2]
-        _add_square(mesh, ixs_ccw, face_ix, u0=theta[i]/2.0/np.pi, v0=0.333, u1=theta[i1]/2.0/np.pi, v1=0.667)
+        _add_square(mesh, ixs_ccw, 2*i+resolution, u0=theta[i]/2.0/np.pi, v0=0.333, u1=theta[i1]/2.0/np.pi, v1=0.667)
 
     for i in range(resolution): # top faces
         i1 = (i+1)%resolution
@@ -104,7 +120,7 @@ def cone(resolution=32, sharpness=1.0):
     # Includes a point at the base.
     resolution = max(resolution,3)
     mesh = {}
-    mesh['verts'] = np.zeros(3,resolution+2)
+    mesh['verts'] = np.zeros([3,resolution+2])
     mesh['verts'][:,0] = [0,0,0] # Center of base.
     mesh['verts'][:,1] = [0,0,2.0*sharpness] # The tip.
 
@@ -134,25 +150,28 @@ def torus(resolution=32, girth=0.25):
     theta = np.linspace(0,2.0*np.pi*fencepost,resolution)
     phi = np.linspace(0,2.0*np.pi*fencepost,resolution)
 
-    theta = np.tile(theta, [1, resolution])
-    phi = np.transpose(np.tile(phi, [1, resolution]))
+    # i is theta, j is phi.
+    theta2D = np.tile(np.expand_dims(theta,1), [1, resolution])
+    phi2D = np.transpose(np.tile(np.expand_dims(phi,1), [1, resolution]))
 
-    x = np.cos(theta) + girth*np.cos(theta)*np.cos(phi)
-    y = np.sin(theta) + girth*np.sin(theta)*np.cos(phi)
-    z = girth*np.sin(phi)
+    unitX = np.cos(theta2D); unitY = np.sin(theta2D)
+    x = unitX + girth*unitX*np.cos(phi2D)
+    y = unitY + girth*unitY*np.cos(phi2D)
+    z = girth*np.sin(phi2D)
 
     mesh = {}
-    mesh['verts'] = np.zeros(3,resolution*resolution)
+    mesh['verts'] = np.zeros([3,resolution*resolution])
     mesh['verts'][0,:] = np.reshape(x, resolution*resolution, order='C') # Phi will change faster than theta.
     mesh['verts'][1,:] = np.reshape(y, resolution*resolution, order='C')
     mesh['verts'][2,:] = np.reshape(z, resolution*resolution, order='C')
-    mesh['faces'] = np.zeros([3, resolution*resolution], dtype=np.int64)
+    mesh['faces'] = np.zeros([3, 2*resolution*resolution], dtype=np.int64)
+    mesh['uvs'] = np.zeros([3, 2*resolution*resolution,2,1])
     face_ix = 0
     for i in range(resolution): # thetas
         for j in range(resolution): # phis
             i1 = (i+1)%resolution
             j1 = (j+1)%resolution
-            ixs_ccw = [i*resolution+j,i1*resolution+j, i*resolution+j1, i1*resolution+j1]
+            ixs_ccw = [i*resolution+j, i1*resolution+j, i1*resolution+j1, i*resolution+j1]
             _add_square(mesh, ixs_ccw, face_ix, u0=theta[i]/2.0/np.pi, v0=phi[j]/2.0/np.pi, u1=theta[i1]/2.0*np.pi, v1=phi[j1]/2.0/np.pi)
             face_ix = face_ix+2
 
