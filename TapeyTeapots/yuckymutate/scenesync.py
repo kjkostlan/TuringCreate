@@ -10,7 +10,7 @@ def buildPointcloud(name, verts):
     pos_writer = GeomVertexWriter(vertex_data, "vertex")
     col_writer = GeomVertexWriter(vertex_data, "color")
     for i in range(nVert):
-        pos_writer.add_data3(*verts[i,:])
+        pos_writer.add_data3(*verts[:,i])
         col_writer.add_data4(1.0,0.5,0.0,0.5)
     points_prim = GeomPoints(Geom.UH_static)
     points_prim.reserve_num_vertices(int(nVert+0.5))
@@ -39,12 +39,12 @@ def buildWireframe(name, wireframe):
     pos_writer = GeomVertexWriter(vertex_data, "vertex")
     col_writer = GeomVertexWriter(vertex_data, "color")
     for i in range(nVert):
-        pos_writer.add_data3(*verts[i,:])
+        pos_writer.add_data3(*verts[:,i])
         col_writer.add_data4(0.5,1.0,0.0,0.5)
     lines_prim = GeomLines(Geom.UH_static)
     lines_prim.reserve_num_vertices(int(2*nEdge+0.5))
     for i in range(nEdge):
-        lines_prim.add_vertices(*edges[i,:])
+        lines_prim.add_vertices(*edges[:,i])
     lines_prim.close_primitive()
     # create a Geom and add the primitive to it
     geom = Geom(vertex_data)
@@ -80,18 +80,18 @@ def buildMesh(name, mesh):
     # the normal is the same for all vertices. TODO: fix this!
     normal = (0., -1., 0.)
     for i in range(nVert):
-        pos_writer.add_data3(*verts[i,:])
+        pos_writer.add_data3(*verts[:,i])
         normal_writer.add_data3(normal)
         if colors is not None:
-            col_writer.add_data4(*colors[i,:])
+            col_writer.add_data4(*colors[:,i])
         if uvs is not None:
-            uv_writer.add_data2(*uvs[i,:])
+            uv_writer.add_data2(*uvs[:,i])
 
     tris_prim = GeomTriangles(Geom.UH_static)
     tris_prim.reserve_num_vertices(int(3*nFace+0.5))
 
     for i in range(nFace):
-         tris_prim.add_vertices(*tris[i,:])
+         tris_prim.add_vertices(*tris[:,i])
     tris_prim.close_primitive()
 
     # create a Geom and add the primitive to it
@@ -114,26 +114,26 @@ def buildMesh3(name, mesh):
        # Can NOT use is_edge_selected, as we do not have an edge array in the mesh.
     # is_face_selected = [nFace], optional.
     #   Can also use selected_faces.
-    nVert = mesh['verts'].shape[0]
-    nFace = mesh['faces'].shape[0]
-    
-    sel_vert = mesh.get('is_vert_selected', np.zeros([nVert,0]))
+    nVert = mesh['verts'].shape[1]
+    nFace = mesh['faces'].shape[1]
+
+    sel_vert = mesh.get('is_vert_selected', np.zeros([nVert]))
     sel_edge = mesh.get('selected_edges', [])
-    sel_face = mesh.get('is_face_selected', np.zeros([nFace,0]))
-    
+    sel_face = mesh.get('is_face_selected', np.zeros([nFace]))
+
     if mesh.get('selected_verts', None) is not None:
         sel_vert[mesh['selected_verts']] = 1.0
 
     if np.sum(sel_face)>=0.5:
         # Colors are per vert, so verts with more selected faces get more yellow.
-        colors = np.copy(mesh.get('colors', np.tile([0,0,1,1],[nVert,1])))
+        colors = np.copy(mesh.get('colors', np.tile([0,0,1,1],[1,nVert])))
         
         sel_weight = np.zeros([nVert,1])
         for i in range(nFace):
             if sel_face[i] >= 0.5:
-                for j in range(mesh['faces'].shape[1]): # One wday we willl support non-tri faces.
-                    sel_weight[mesh['faces'][i,j]] = sel_weight[mesh['faces'][i,j]] + 1
-        sel_colors = np.tile([1,1,0,1],[nVert,1])
+                for j in range(mesh['faces'].shape[0]): # One day we willl support non-tri faces.
+                    sel_weight[mesh['faces'][j,i]] = sel_weight[mesh['faces'][j,i]] + 1
+        sel_colors = np.transpose(np.tile([1,1,0,1],[nVert,1]))
         sel_porp = 1.0-1.0/(1.0+sel_weight)
         colors1 = sel_colors*sel_porp + colors*(1-sel_porp)
         mesh = mesh.copy()
@@ -142,7 +142,7 @@ def buildMesh3(name, mesh):
     point_mesh = None
     edge_mesh = None
     if np.size(sel_vert)>0:
-        sel_points = mesh['verts'][sel_vert>=0.5,:]
+        sel_points = mesh['verts'][:,sel_vert>=0.5]
         point_mesh = buildPointcloud(name+'points', sel_points)
     if np.size(sel_edge)>0:
         edge_mesh = buildWireframe(name+'edges', {'verts':mesh['verts'], 'edges':sel_edge>=0.5})
