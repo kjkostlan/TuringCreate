@@ -30,10 +30,10 @@ def makeRandomMesh(nVert=None, nFace=None):
     if nFace is None:
         nFace = int(np.random.random()*512)+3
 
-    verts = np.random.random([nVert,3])
-    faces = (np.random.random([nFace,3])*(nVert-2)).astype(np.int32)
-    uvs = np.random.random([nVert,2])-0.5
-    colors = np.random.random([nVert,4])
+    verts = np.random.random([3,nVert])
+    faces = (np.random.random([3,nFace])*(nVert-2)).astype(np.int32)
+    uvs = np.random.random([2,nVert])-0.5
+    colors = np.random.random([4,nVert])
     out = {'verts':verts,'faces':faces,'UV':uvs,'colors':colors}
 
     do_sel_verts = False
