@@ -6,6 +6,14 @@ So how is it different than macros? [Most macros]https://www.youtube.com/watch?v
 
 Another feature planned is custom sliders. You attach sliders to both to numerical literal values and optionally to in-world objects (much like the handles on shapes in Libreoffice) in order to manipulate them by dragging them in a scrollbar or in the 3D world, which can be easier than editing the number directly in some cases (you still can edit the numbers, of course).
 
+**Packages**
+
+pip3 install numpy # Python3 should just include numpy by default.
+pip3 install matplotlib # Quite clunky but still widely used.
+pip3 install numba # Like Cython but far easier to use.
+pip3 install panda3d # Higher performance game packages may be available...
+pip3 install Pillow # Images.
+
 **Working Submodules**
 
 PythonPixels: This is the procedural texturing tool. It has the features of Blender's tools, and far more flexibility, but is much slower (for now). No GUI is available, but one is planned for the future.
@@ -18,7 +26,7 @@ TapeyTeapots: This is the mesh modeler tool. It is the main submodule and inspir
 
 CurvesOfCode: A 2d vector tool inspired by Inkscape, but it may not be worth it to make this a separate tool from TapeyTeapots.
 
-LatexLines: Word processing, probably using pyLatex. 
+LatexLines: Word processing, probably using pyLatex.
 
 FunctionalFigures: Matplotlib wrapper.
 
