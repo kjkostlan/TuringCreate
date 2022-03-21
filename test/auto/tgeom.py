@@ -7,7 +7,7 @@ import TapeyTeapots.meshops.coregeom as coregeom
 
 def _dict2list(d):
     # Sort the keys!
-    kys1 = list(sort(d.keys()))
+    kys1 = list(d.keys()); kys1.sort()
     l = []
     for ky in kys1:
         l.append(ky)
@@ -36,7 +36,7 @@ def approx_eq(x1, x2, precision=1e-4):
     # Uses inty, but also runs the precision at lower values incase we have a bad bounrady condition.
     # Works on tree datastructures, allowing more flexibility than numpy.allclose.
     phi = 0.5*(1.0+np.sqrt(5.0))
-    
+
     precision1 = precision
     while precision1 > 1e-15:
         if str(_inty(x1)) == str(_inty(x2)):
@@ -46,7 +46,7 @@ def approx_eq(x1, x2, precision=1e-4):
 
 def is_all_true(x):
     for xi in x:
-        if xi is not True:
+        if not xi:
             return False
     return True
 
@@ -81,7 +81,7 @@ def test_basics():
     geom_3xk_projected = np.matmul(proj_matrix,geom_3xk_random)
     geom_3xk_in_plane =geom_3xk_random - geom_3xk_projected + np.expand_dims(origin_vec_plane,1)
     _, normal_plane_green = coregeom.regression_plane(geom_3xk_in_plane) # origin vec will be different b/c or random points.
-    planetest = approx_eq(normal_plane_green, normal_vec_plane/np.linalg.norm(normal_vec_plane)) 
+    planetest = approx_eq(normal_plane_green, normal_vec_plane/np.linalg.norm(normal_vec_plane))
 
     # Projection fns:
     geom_3xk_random = np.random.randn(3, 16)
@@ -131,7 +131,7 @@ def test_triangles():
     tests = []
 
     np.random.seed(123456)
-    random_ortho, _ = np.linalg.qr(np.random.randn(3, 3)) 
+    random_ortho, _ = np.linalg.qr(np.random.randn(3, 3))
 
     horiz_right_triangle = np.expand_dims(np.transpose([[0,0,0],[1,0,0],[0,1,0]]),2)
 
@@ -139,7 +139,7 @@ def test_triangles():
 
     tests.append(approx_eq(coregeom.triangle_scaled_normals(horiz_right_triangle),np.expand_dims([0,0,0.5],1)))
 
-    rotated_triangle = np.einsum('iu,ujk->ijk',random_ortho, horiz_right_triangle)    
+    rotated_triangle = np.einsum('iu,ujk->ijk',random_ortho, horiz_right_triangle)
     tests.append(approx_eq(coregeom.triangle_areas(rotated_triangle),[0.5]))
 
     triangle_pair = np.concatenate([horiz_right_triangle, 2.5*rotated_triangle],axis=2)
@@ -184,7 +184,7 @@ def test_inside_loop():
         rand_mat[2,:] = 0 # cannot shear orthogonal to the plane.
         rand_mat[:,2] = 0
         rand_mat[2,2] = 1
-        random_ortho, _ = np.linalg.qr(np.random.randn(3, 3)) 
+        random_ortho, _ = np.linalg.qr(np.random.randn(3, 3))
         return np.matmul(random_ortho, rand_mat)
 
     np.random.seed(4321)
@@ -216,7 +216,7 @@ def test_inside_loop():
         pts_inside[2,:] = z
         pts_outside = pts*1.01
         pts_outside[2,:] = z
-        
+
         rand_mat = rand_mat_no_zshear()
         pts1 = np.matmul(rand_mat, pts)
         pts_inside1 = np.matmul(rand_mat, pts_inside)
