@@ -150,11 +150,13 @@ def triangle_project(triangle_3columns, query_3xn):
     # Project to a point, edge, or face.
     bary_4xn = barycentric(triangle_3columns, query_3xn)
 
-    # Project to 0-1:
-    bary_4xn[3,:] = 0.0
+    # Make sure all components are at least zero, and that w is zero:
     for o in range(3):
         bary_4xn[o,:] = np.maximum(bary_4xn[o,:],0.0)
-        bary_4xn[o,:] = np.minimum(bary_4xn[o,:],1.0)
+    bary_4xn[3,:] = 0.0
+
+    # Normalize:
+    bary_4xn = bary_4xn/(np.expand_dims(np.sum(bary_4xn,axis=0),0)+1e-100)
 
     return unbarycentric(triangle_3columns, bary_4xn)
 
