@@ -2,55 +2,7 @@
 import numpy as np
 import math
 import TapeyTeapots.meshops.coregeom as coregeom
-
-################################ Enables approximate matching ##########################
-
-def _dict2list(d):
-    # Sort the keys!
-    kys1 = list(d.keys()); kys1.sort()
-    l = []
-    for ky in kys1:
-        l.append(ky)
-        l.append(d[ky])
-    return l
-
-def _inty(x, precision=1e-4):
-    # Numbers to integers (divided by precision).
-    # Tuples to lists.
-    # Dicts to lists with sorted keys.
-    if x is None:
-        return x
-    if type(x) is list or type(x) is tuple:
-        return [_inty(xi) for xi in x]
-    if type(x) is dict:
-        return _inty(_dict2list(x))
-    if type(x) is np.ndarray:
-        return _inty(list(x))
-    if type(x) is str or (x is False) or (x is True):
-        return x
-    if math.isnan(x):
-        return 'nan'
-    return int(np.round(x/precision))
-
-def approx_eq(x1, x2, precision=1e-4):
-    # Uses inty, but also runs the precision at lower values incase we have a bad bounrady condition.
-    # Works on tree datastructures, allowing more flexibility than numpy.allclose.
-    phi = 0.5*(1.0+np.sqrt(5.0))
-
-    precision1 = precision
-    while precision1 > 1e-15:
-        if str(_inty(x1)) == str(_inty(x2)):
-            return True
-        precision1 = precision1/phi
-    return False
-
-def is_all_true(x):
-    for xi in x:
-        if not xi:
-            return False
-    return True
-
-################################ The tests themselves ##########################
+from . import tmetric
 
 def test_basics():
     # The regression line:
@@ -59,7 +11,7 @@ def test_basics():
     direction_exact = np.asarray([1,10,100])/np.linalg.norm([1,10,100])
     points_exact_green, direction_exact_green = coregeom.regression_line(geom_3xk_exact)
 
-    linetest = approx_eq([origin_exact, direction_exact],[points_exact_green, direction_exact_green])
+    linetest = tmetric.approx_eq([origin_exact, direction_exact],[points_exact_green, direction_exact_green])
 
     np.random.seed(123123) # This test fails on a set of measure zero.
     geom_3xk_random = np.random.randn(3, 16)
@@ -81,7 +33,7 @@ def test_basics():
     geom_3xk_projected = np.matmul(proj_matrix,geom_3xk_random)
     geom_3xk_in_plane =geom_3xk_random - geom_3xk_projected + np.expand_dims(origin_vec_plane,1)
     _, normal_plane_green = coregeom.regression_plane(geom_3xk_in_plane) # origin vec will be different b/c or random points.
-    planetest = approx_eq(normal_plane_green, normal_vec_plane/np.linalg.norm(normal_vec_plane))
+    planetest = tmetric.approx_eq(normal_plane_green, normal_vec_plane/np.linalg.norm(normal_vec_plane))
 
     # Projection fns:
     geom_3xk_random = np.random.randn(3, 16)
@@ -91,7 +43,7 @@ def test_basics():
     geom_3xk_project_plane = coregeom.project_to_plane(origin_vec_plane, normal_vec_plane, geom_3xk_random)
     dots = np.sum(geom_3xk_project_plane*np.expand_dims(normal_vec_plane,1),axis=0)
 
-    plane_proj_test = (np.std(dots)<1e-6) and (approx_eq(dots[0],np.sum(origin_vec_plane*normal_vec_plane))) and (np.std(geom_3xk_project_plane) > 0.01)
+    plane_proj_test = (np.std(dots)<1e-6) and (tmetric.approx_eq(dots[0],np.sum(origin_vec_plane*normal_vec_plane))) and (np.std(geom_3xk_project_plane) > 0.01)
 
     geom_3xk_project_line = coregeom.project_to_line(origin_vec_plane, normal_vec_plane, geom_3xk_random)
     geom_3xk_project_line0 = geom_3xk_project_line - np.expand_dims(origin_vec_plane,1)
@@ -121,8 +73,8 @@ def test_basics():
     line_origins = np.random.randn(3,16)
     line_directions = np.random.randn(3,16)
     intersects = coregeom.line_plane_intersection(plane_origin, plane_normal, line_origins, line_directions)
-    line_plane_project = approx_eq(coregeom.project_to_plane(plane_origin, plane_normal, intersects), intersects)
-    line_plane_project = line_plane_project and approx_eq([0.0,0.0,0.0],np.cross(line_origins[:,7]-intersects[:,7],line_directions[:,7]))
+    line_plane_project = tmetric.approx_eq(coregeom.project_to_plane(plane_origin, plane_normal, intersects), intersects)
+    line_plane_project = line_plane_project and tmetric.approx_eq([0.0,0.0,0.0],np.cross(line_origins[:,7]-intersects[:,7],line_directions[:,7]))
 
     return (linetest and linetest1 and planetest and plane_proj_test and line_proj_test and line_line_closest_test and line_plane_project)
 
@@ -135,18 +87,18 @@ def test_triangles():
 
     horiz_right_triangle = np.expand_dims(np.transpose([[0,0,0],[1,0,0],[0,1,0]]),2)
 
-    tests.append(approx_eq(coregeom.triangle_areas(horiz_right_triangle),[0.5]))
+    tests.append(tmetric.approx_eq(coregeom.triangle_areas(horiz_right_triangle),[0.5]))
 
-    tests.append(approx_eq(coregeom.triangle_scaled_normals(horiz_right_triangle),np.expand_dims([0,0,0.5],1)))
+    tests.append(tmetric.approx_eq(coregeom.triangle_scaled_normals(horiz_right_triangle),np.expand_dims([0,0,0.5],1)))
 
     rotated_triangle = np.einsum('iu,ujk->ijk',random_ortho, horiz_right_triangle)
-    tests.append(approx_eq(coregeom.triangle_areas(rotated_triangle),[0.5]))
+    tests.append(tmetric.approx_eq(coregeom.triangle_areas(rotated_triangle),[0.5]))
 
     triangle_pair = np.concatenate([horiz_right_triangle, 2.5*rotated_triangle],axis=2)
-    tests.append(approx_eq(coregeom.triangle_areas(triangle_pair),[0.5, 0.5*2.5*2.5]))
+    tests.append(tmetric.approx_eq(coregeom.triangle_areas(triangle_pair),[0.5, 0.5*2.5*2.5]))
 
     degenerate_triangle = np.expand_dims(np.transpose([[0,0,0],[1,0,0],[2,0,0]]),2)
-    tests.append(approx_eq(coregeom.triangle_areas(degenerate_triangle),[0.0]))
+    tests.append(tmetric.approx_eq(coregeom.triangle_areas(degenerate_triangle),[0.0]))
 
     simplex = np.transpose([[1,0,0],[0,1,0],[0,0,1]])
     center_of_simplex = np.asarray([1,1,1])/3.0
@@ -157,24 +109,24 @@ def test_triangles():
     query = np.stack([center_of_simplex, edge_12, edge_13, edge_23, vertex_2], axis=1)
     result = np.zeros([4,query.shape[1]])
     result[0:3,:] = query
-    tests.append(approx_eq(coregeom.barycentric(simplex, query),result))
-    tests.append(approx_eq(coregeom.barycentric(2.5*simplex, 2.5*query),result))
+    tests.append(tmetric.approx_eq(coregeom.barycentric(simplex, query),result))
+    tests.append(tmetric.approx_eq(coregeom.barycentric(2.5*simplex, 2.5*query),result))
 
-    tests.append(approx_eq(coregeom.barycentric(5.0*np.squeeze(horiz_right_triangle), np.transpose([[0,0,1]])),np.transpose([[1,0,0,0.2]])))
+    tests.append(tmetric.approx_eq(coregeom.barycentric(5.0*np.squeeze(horiz_right_triangle), np.transpose([[0,0,1]])),np.transpose([[1,0,0,0.2]])))
 
     rand_tri = np.random.randn(3,3)
     rand_pts = np.random.randn(3,16)
     bary = coregeom.barycentric(rand_tri, rand_pts)
     rand_pts_green = coregeom.unbarycentric(rand_tri, bary)
-    tests.append(approx_eq(rand_pts, rand_pts_green))
+    tests.append(tmetric.approx_eq(rand_pts, rand_pts_green))
 
     # Triangle projection test:
     right_tri = np.transpose([[0,0,0],[1,0,0],[0,1,0]])
     pts0 = -np.random.random([3,16])
     pts1 = coregeom.triangle_project(right_tri, pts0)
-    tests.append(approx_eq(pts1, np.zeros_like(pts1)))
+    tests.append(tmetric.approx_eq(pts1, np.zeros_like(pts1)))
 
-    return is_all_true(tests)
+    return tmetric.is_all_true(tests)
 
 def test_inside_loop():
     tests = []
@@ -194,14 +146,14 @@ def test_inside_loop():
     inside_gold = (pts[1,:]<1)*(pts[0,:]<1)*(pts[1,:]>0)*(pts[0,:]>0)
     inside_green = coregeom.is_inside_loop(square, pts)
 
-    tests.append(approx_eq(inside_gold+0.1, inside_green+0.1))
+    tests.append(tmetric.approx_eq(inside_gold+0.1, inside_green+0.1))
 
     # Apply a random transformation:
     for _ in range(8):
         rand_mat = rand_mat_no_zshear()
         square1 = np.matmul(rand_mat, square)
         pts1 = np.matmul(rand_mat, pts)
-        tests.append(approx_eq(inside_gold+0.1, coregeom.is_inside_loop(square1, pts1)+0.1))
+        tests.append(tmetric.approx_eq(inside_gold+0.1, coregeom.is_inside_loop(square1, pts1)+0.1))
 
     # Another random test:
     for _ in range(8):
@@ -221,7 +173,7 @@ def test_inside_loop():
         pts1 = np.matmul(rand_mat, pts)
         pts_inside1 = np.matmul(rand_mat, pts_inside)
         pts_outside1 = np.matmul(rand_mat, pts_outside)
-        tests.append(approx_eq(coregeom.is_inside_loop(pts1, pts_inside1)+0.1, 0.1+np.ones(k)))
-        tests.append(approx_eq(coregeom.is_inside_loop(pts1, pts_outside1)+0.1, 0.1+np.zeros(k)))
+        tests.append(tmetric.approx_eq(coregeom.is_inside_loop(pts1, pts_inside1)+0.1, 0.1+np.ones(k)))
+        tests.append(tmetric.approx_eq(coregeom.is_inside_loop(pts1, pts_outside1)+0.1, 0.1+np.zeros(k)))
 
-    return is_all_true(tests)
+    return tmetric.is_all_true(tests)

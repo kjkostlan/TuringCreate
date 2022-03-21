@@ -43,7 +43,7 @@ def report_broken(print_reports = True):
     fn_name2obj = _mergedicts(auto_fnss)
 
     if print_reports:
-        print("**Running all units tests**")
+        print("**Running all unit tests**")
 
     failures = []
     for fname, fobj in fn_name2obj.items():

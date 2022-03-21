@@ -1,7 +1,7 @@
 # Tests mesh operations.
 import numpy as np
 from TapeyTeapots.meshops import primitives, trimesh, meshchange, quat34
-from . import tgeom, tquat43
+from . import tmetric, tquat43
 
 def test_basics():
     # Tests primatives and the simplest mesh operations.
@@ -15,19 +15,19 @@ def test_basics():
     for i in range(len(weights)):
         m_gold[ix[i],jx[i]] = m_gold[ix[i],jx[i]] + weights[i]
     m_green = trimesh._accum2D(np.asarray(ix), np.asarray(jx), np.asarray(weights))
-    tests.append(tgeom.approx_eq(m_gold, m_green))
+    tests.append(tmetric.approx_eq(m_gold, m_green))
 
     # Tests of volume of a cube, and scaling by random 4x4 matrix:
     cube_mesh = primitives.cube()
     volume = trimesh.volume(cube_mesh, origin=None, normal=None, signed=True)
-    tests.append(tgeom.approx_eq(volume, 8.0))
+    tests.append(tmetric.approx_eq(volume, 8.0))
     leak = trimesh.leaky_verts(cube_mesh)
-    tests.append(tgeom.approx_eq(leak, []))
+    tests.append(tmetric.approx_eq(leak, []))
     mat44 = tquat43.random_4x4_matrixes(1)[0]
     det = np.linalg.det(mat44[0:3,0:3])
     cube_mesh1 = cube_mesh.copy(); cube_mesh1['verts'] = quat34.m44v(mat44, cube_mesh1['verts'])
     volume1 = trimesh.volume(cube_mesh1, origin=None, normal=None, signed=True)
-    tests.append(tgeom.approx_eq(volume*det, volume1))
+    tests.append(tmetric.approx_eq(volume*det, volume1))
 
     # Watertight on all other primatives:
     meshes = [primitives.sphere(), primitives.cylinder(), primitives.cone(), primitives.torus()]
@@ -36,7 +36,7 @@ def test_basics():
         tests.append(np.asarray(leak).size==0)
         tests.append(float(trimesh.volume(mesh, signed=True))>0.001)
 
-    return tgeom.is_all_true(tests)
+    return tmetric.is_all_true(tests)
 
 def test_structural():
     # Structural mesh operations, such as deleting vertexes, etc.
@@ -86,7 +86,7 @@ def test_structural():
     edges_to_flip = edges_2xk[:,diagonal_edges]
     cube_mesh1 = trimesh.flip_edges(cube_mesh, edges_to_flip)
     tests.append(len(diagonal_edges)==6)
-    tests.append(tgeom.approx_eq(trimesh.volume(cube_mesh, signed=True), trimesh.volume(cube_mesh1, signed=True)))
+    tests.append(tmetric.approx_eq(trimesh.volume(cube_mesh, signed=True), trimesh.volume(cube_mesh1, signed=True)))
 
     bad_edges = edges_2xk[:,[0,0]] # The repeat makes the second edge invalid.
     try:
@@ -150,7 +150,7 @@ def test_structural():
     mesh3 = trimesh.meshcat(meshes)
     volume_green = trimesh.volume(mesh3)
     volume_gold = np.sum([trimesh.volume(m) for m in meshes])
-    tests.append(tgeom.approx_eq(volume_green,volume_gold))
+    tests.append(tmetric.approx_eq(volume_green,volume_gold))
     tests.append(bool(trimesh.leaky_verts(mesh3).size==0))
 
     # Remove redundent faces tests with duplicate meshes:
@@ -159,7 +159,7 @@ def test_structural():
     extra_cubes_mesh['faces'] = np.concatenate([f,f,np.roll(f,1,axis=0),np.roll(f,2,axis=0)],axis=1)
     extra_cubes_mesh['uvs'] = np.concatenate([u,u,u,u],axis=1)
     cube_mesh1 = trimesh.remove_redundant_faces(extra_cubes_mesh, distinguish_normals=True)
-    tests.append(tgeom.approx_eq(cube_mesh,cube_mesh1))
+    tests.append(tmetric.approx_eq(cube_mesh,cube_mesh1))
 
     f_flipped = np.stack([f[1,:],f[0,:],f[2,:]],axis=0)
     double_sided_cube_mesh = cube_mesh.copy();
@@ -176,7 +176,7 @@ def test_structural():
     mesh1 = trimesh.remove_redundant_verts(cube_mesh_weld)
     tests.append(bool(mesh1['verts'].shape[1]==7))
 
-    return tgeom.is_all_true(tests)
+    return tmetric.is_all_true(tests)
 
 def test_add_points():
     # This is by far the hardest function in trimesh, do to complex structural changes.
@@ -196,24 +196,24 @@ def test_add_points():
     # Center poke triangle test, single point:
     faces1, uvs1 = trimesh.poke_triangle(triangle3, new_point, None, np.asarray([0]), np.asarray([0]), np.asarray([0]))
     faces_gold = np.stack([[0,1,3],[0,3,2],[1,2,3]],axis=1)
-    tests.append(tgeom.approx_eq(faces_gold,sortf(faces1)))
+    tests.append(tmetric.approx_eq(faces_gold,sortf(faces1)))
 
     # Edge poke triangle tests, single point:
     faces1, uvs1 = trimesh.poke_triangle(triangle3, new_point, None, np.asarray([1]), np.asarray([0]), np.asarray([0]), edge_assert=1.0)
     faces_gold = np.stack([[0,1,3],[0,3,2]],axis=1)
-    tests.append(tgeom.approx_eq(faces_gold,sortf(faces1)))
+    tests.append(tmetric.approx_eq(faces_gold,sortf(faces1)))
     faces1, uvs1 = trimesh.poke_triangle(triangle3, new_point, None, np.asarray([0]), np.asarray([1]), np.asarray([0]), edge_assert=1.0)
     faces_gold = np.stack([[0,1,3],[1,2,3]],axis=1)
-    tests.append(tgeom.approx_eq(faces_gold,sortf(faces1)))
+    tests.append(tmetric.approx_eq(faces_gold,sortf(faces1)))
     faces1, uvs1 = trimesh.poke_triangle(triangle3, new_point, None, np.asarray([0]), np.asarray([0]), np.asarray([1]), edge_assert=1.0)
     faces_gold = np.stack([[0,3,2],[1,2,3]],axis=1)
-    tests.append(tgeom.approx_eq(faces_gold,sortf(faces1)))
+    tests.append(tmetric.approx_eq(faces_gold,sortf(faces1)))
 
     # 3 edges triangle poke test:
     new_points = np.transpose([[0,0.5,0.5],[0.5,0,0.5],[0.5,0.5,0]])
     faces_gold = np.stack([[0,5,4],[1,3,5],[2,4,3],[3,4,5]],axis=1)
     faces1, uvs1 = trimesh.poke_triangle(triangle3, new_points, None, np.asarray([1,0,0]), np.asarray([0,1,0]), np.asarray([0,0,1]))
-    tests.append(tgeom.approx_eq(faces_gold,sortf(faces1)))
+    tests.append(tmetric.approx_eq(faces_gold,sortf(faces1)))
 
     # Cube mesh, poking one face with one point in the center:
     point_within_face = np.transpose([[0.45,0.25,1.0]]) # 6 squares = 12 triangles.
@@ -231,7 +231,7 @@ def test_add_points():
     tests.append(len(trimesh.leaky_verts(mesh1))==0)
     volume_gold = 8+1.0/3.0*4*h
     volume_green = trimesh.volume(mesh1, origin=None, normal=None, signed=True)
-    tests.append(tgeom.approx_eq(volume_gold, volume_green))
+    tests.append(tmetric.approx_eq(volume_gold, volume_green))
 
     # Cube mesh, poking a corner.
     corner_point = np.transpose([[3,3,3]]) # Note: [1,1,1] is the corner, but we poke it.
@@ -246,6 +246,6 @@ def test_add_points():
     mesh1 = trimesh.glue_points(cube, pts, relthreshold=0.000001, project_points=True)
     tests.append(len(trimesh.leaky_verts(mesh1))==0)
     tests.append(mesh1['faces'].shape[1] > 12 + nPts)
-    tests.append(tgeom.approx_eq(trimesh.volume(mesh1),trimesh.volume(cube)))
+    tests.append(tmetric.approx_eq(trimesh.volume(mesh1),trimesh.volume(cube)))
 
-    return tgeom.is_all_true(tests)
+    return tmetric.is_all_true(tests)
