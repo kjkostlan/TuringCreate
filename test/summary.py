@@ -85,16 +85,17 @@ def broken_record(delay_seconds = 1.0, empty_lines = 6):
             break
         time.sleep(delay_seconds)
 
-def list_demos():
+def list_demos(m_string=None):
     # Map from fname to fn.
-    demo_fnss = [_module_to_method_objs(m_string) for m_string in module_list_demos]
-    fn_name2obj = _mergedicts(demo_fnss)
-    fname2int = dict(zip(fn_name2obj.keys(), range(len(fn_name2obj))))
-    return fname2int, fn_name2obj
+    if m_string is not None:
+        f_name2obj = _module_to_method_objs(m_string)
+    else:
+        demo_fnss = [_module_to_method_objs(m_string) for m_string in module_list_demos]
+        f_name2obj = _mergedicts(demo_fnss)
+    int2fname = dict(zip(range(len(f_name2obj)),f_name2obj.keys()))
+    return int2fname, f_name2obj
 
-def run_demo(ix):
+def run_demo(ix, m_string=None):
     # Runs the ix's demo.
-    fname2int, fn_name2obj = list_demos()
-    int2fname = dict(zip(fname2int.values(),fname2int.keys()))
-
-    return fn_name2obj[int2fname[ix]]()
+    int2fname, f_name2obj = list_demos(m_string)
+    return f_name2obj[int2fname[ix]]()

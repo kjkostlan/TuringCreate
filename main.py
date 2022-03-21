@@ -3,6 +3,21 @@ import test.summary as tests
 import reload
 import sys, traceback
 
+def _k_or_v2k(x, k_or_v):
+    # Returns the k that matches key or value.
+    if k_or_v in x:
+        return k_or_v
+    else:
+        for k in x.keys():
+            if k_or_v.lower() in x[k].lower():
+                return k
+
+def _to_int(x):
+    try:
+        return int(x)
+    except:
+        return str(x)
+
 if __name__ == "__main__":
     print('Turing create launched...')
     while True:
@@ -21,12 +36,34 @@ if __name__ == "__main__":
                 tests.broken_record()
             elif x=='q':
                 quit()
-            elif x=='d':
-                fname2int, fn_name2obj = tests.list_demos()
-                print(fname2int)
-            elif x[0] == 'd':
-                ix = int(x[1:])
-                tests.run_demo(ix)
+            elif x[0]=='d':
+                pieces = x.split(' ')
+                module_dict = dict(zip(range(len(tests.module_list_demos)), tests.module_list_demos))
+                if len(pieces) == 1:
+                    print('Demo modules:\n')
+                    print(module_dict)
+                elif len(pieces) == 2: # Module specified, list fns within module.
+                    k = _k_or_v2k(module_dict, _to_int(pieces[1]))
+                    print('Stuff:', pieces[1],k)
+                    if k is not False and k is not None:
+                        fname2int, fn_name2obj = tests.list_demos(module_dict[k])
+                        print('Demos within module: '+module_dict[k]+'\n',fname2int)
+                    else:
+                        print('Unrecognized module or out-of-bounds int ix:',pieces[1])
+                elif len(pieces) == 3: # Run the function.
+                    k = _k_or_v2k(module_dict, _to_int(pieces[1]))
+                    if k is not False and k is not None:
+                        fname2int, fn_name2obj = tests.list_demos(module_dict[k])
+                        k1 = _k_or_v2k(fname2int, _to_int(pieces[2]))
+                        if k1 is not False and k1 is not None:
+                            f_obj = fn_name2obj[fname2int[k1]]
+                            f_obj()
+                        else:
+                            print('Unrecognized fn within module or out-of-bounds int ix:',pieces[2])
+                    else:
+                        print('Unrecognized module or out-of-bounds int ix:',pieces[1])
+                else:
+                    print('Too many arguments given.')
             elif x[0]=='e':
                 eval(x[1:])
             else:
