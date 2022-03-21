@@ -58,7 +58,7 @@ def report_broken(print_reports = True):
             print('all', len(fn_name2obj), 'tests passed!')
     return failures
 
-def broken_record(delay_seconds = 1.0):
+def broken_record(delay_seconds = 1.0, empty_lines = 6):
     # Keeps running the broken tests, waiting delay_seconds every loop.
     # It only reruns the tests broken on the first run.
     # Use while working on a test to avoid having to constantly run the test.
@@ -69,6 +69,8 @@ def broken_record(delay_seconds = 1.0):
         print('No need to re-try, all tests working.')
         return
     while True:
+        for _ in range(empty_lines):
+            print('')
         reload.reload_user_py_catcherr()
         auto_fnss = [_module_to_method_objs(m_string) for m_string in module_list_auto] # TODO: only in the module(s) that have failures.
         fn_name2obj = _mergedicts(auto_fnss) # Need to refresh this every time reload is called.
