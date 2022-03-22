@@ -42,9 +42,9 @@ def makeRandomMesh(nVert=None, nFace=None):
     if do_sel_verts:
         out['is_vert_selected'] = np.random.random([nVert])*0.7
     if do_sel_edges:
-        sel_edge = np.zeros([int(nVert*0.5), 2])
-        sel_edge[:,0] = np.arange(int(nVert*0.5))
-        sel_edge[:,1] = np.arange(int(nVert*0.5))+1
+        sel_edge = np.zeros([2, int(nVert*0.5)])
+        sel_edge[0,:] = np.arange(int(nVert*0.5))
+        sel_edge[1,:] = np.arange(int(nVert*0.5))+1
         sel_edge = sel_edge.astype(np.int32)
         out['selected_edges'] = sel_edge
 

@@ -1,10 +1,24 @@
 from panda3d.core import *
 import numpy as np
 
+# Helper functions:
+def vert_uvs(mesh, k=0):
+    # Averages face uvs to get vert uvs, returns [2, nVert]
+    # mesh['uvs'] = [3,nFace,2,k], we fix k and average over all faces going to a single vert.
+    nVert = mesh['verts'].shape[1]
+    moments = np.ones([2, nVert])*1e-100
+    weights = moments*0.5
+    faces = mesh['faces']; uvs = mesh['uvs'][:,:,:,k]
+    for i in range(faces.shape[1]):
+        for o in range(3):
+            v_ix = faces[o,i]; uv = uvs[o,i,:]
+            moments[:,v_ix] = uv[0:2] # uvs can be >2, i.e uvw maps, but we willnot use the w coord.
+            weights[:,v_ix] = weights[:,v_ix] + 1 # count up the number of faces to said vert.
+    return moments/weights
 
 # Mesh, camera, and GUI sync when a nice vanilla python object is updated.
 def buildPointcloud(name, verts):
-    nVert = verts.shape[0]
+    nVert = verts.shape[1]
     vertex_format = GeomVertexFormat.get_v3c4()
     vertex_data = GeomVertexData(name, vertex_format, Geom.UH_static)
     pos_writer = GeomVertexWriter(vertex_data, "vertex")
@@ -43,6 +57,7 @@ def buildWireframe(name, wireframe):
         col_writer.add_data4(0.5,1.0,0.0,0.5)
     lines_prim = GeomLines(Geom.UH_static)
     lines_prim.reserve_num_vertices(int(2*nEdge+0.5))
+
     for i in range(nEdge):
         lines_prim.add_vertices(*edges[:,i])
     lines_prim.close_primitive()
@@ -64,10 +79,12 @@ def buildMesh(name, mesh):
     # colors is [nVert, 4], float 0-1 rgba.
     verts = mesh['verts']
     tris = mesh['faces']
-    uvs = mesh.get('UVs',None)
+    uvs = mesh.get('uvs',None)
+    if uvs is not None:
+        vuvs = vert_uvs(mesh)
     colors = mesh.get('colors', None)
-    nVert = verts.shape[0]
-    nFace = tris.shape[0]
+    nVert = verts.shape[1]
+    nFace = tris.shape[1]
 
     # For now, use uvs into colors:
     # Anoter part from: https://discourse.panda3d.org/t/new-procedural-geometry-samples/24882
@@ -85,7 +102,7 @@ def buildMesh(name, mesh):
         if colors is not None:
             col_writer.add_data4(*colors[:,i])
         if uvs is not None:
-            uv_writer.add_data2(*uvs[:,i])
+            uv_writer.add_data2(*vuvs[:,i])
 
     tris_prim = GeomTriangles(Geom.UH_static)
     tris_prim.reserve_num_vertices(int(3*nFace+0.5))
