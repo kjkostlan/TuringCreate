@@ -24,6 +24,8 @@ if __name__ == "__main__":
         for i in range(4):
             print('')
         x = str(input('Select what to run, or "h" for help:')).lower().strip()
+        if x=='q':
+            quit()
         reload.reload_user_py_catcherr()
         if x=='':
             x = 'h'
@@ -34,8 +36,6 @@ if __name__ == "__main__":
                 tests.report_broken()
             elif x=='t r':
                 tests.broken_record()
-            elif x=='q':
-                quit()
             elif x[0]=='d':
                 pieces = x.split(' ')
                 module_dict = dict(zip(range(len(tests.module_list_demos)), tests.module_list_demos))
