@@ -72,7 +72,6 @@ def buildWireframe(name, wireframe):
     nodey.set_render_mode_thickness(2)
     return nodey
 
-
 def buildMesh(name, mesh):
     # Verts is [nVert,3], tris is [nFace,3] and is int not float.
     # uvs is [nVert,2] Note: Different from blender which allows seams and is {layer:[nFace, 3,2]}

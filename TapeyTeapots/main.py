@@ -32,7 +32,7 @@ class Demo:
 
         # The pivot is very strong: it holds the weight of the other meshes and text, and lights/camera/
         self.pivot = showbase.render.attach_new_node("pivot")
-        showbase.task_mgr.add(self.__every_frame, "every_frame")
+        self._task = showbase.task_mgr.add(self._every_frame, "every_frame")
 
         self.mouse_state = {}
         self.key_state = {}
@@ -42,9 +42,14 @@ class Demo:
         mousekey.set_up_mouse(showbase, self.mouse_state, self.mouse_clicks)
         mousekey.set_up_keys(showbase, self.key_state, self.key_clicks)
 
-        showbase.run()
+        # https://discourse.panda3d.org/t/userexit-without-kill-the-python-interpreter/10683
+        try:
+            showbase.run()
+        except SystemExit as e:
+            showbase.task_mgr.remove(self._task)
+            showbase.destroy()
 
-    def __every_frame(self, task):
+    def _every_frame(self, task):
 
         self.screen_state = [base.win.getProperties().getXSize(), base.win.getProperties().getYSize()]
         mousekey.update_mouse_pos(self.mouse_state, self.screen_state)
@@ -54,19 +59,21 @@ class Demo:
         except Exception:
             print('Every Frame Error:')
             print(traceback.format_exc())
-            time.sleep(3)
+            time.sleep(0.25)
+            appstate1 = None
         if appstate1 is None or type(appstate1) is not dict or len(appstate1.keys())==0:
             print('Every Frame returns None or empty app-state, which will be not used.')
-            appstate1 = self.app_state
-            time.sleep(3)
+            appstate1 = self.appstate
+            time.sleep(0.25)
 
-        self.appstate = appstate1
+        if appstate1 is not None:
+            self.appstate = appstate1
         for k in self.mouse_clicks.keys():
             self.mouse_clicks[k] = False
         for k in self.key_clicks.keys():
             self.key_clicks[k] = False
 
-        # Sinc the app state:
+        # Sync the app state:
         oldstate = self.old_appstate
         newstate = self.appstate
         try:
@@ -74,7 +81,7 @@ class Demo:
         except Exception:
             print('Appstate synchronization error:')
             print(traceback.format_exc())
-            time.sleep(3)
+            time.sleep(0.25)
         self.old_appstate = self.appstate
 
         self.appstate['elapsed_frames'] = self.appstate['elapsed_frames']+1
@@ -84,6 +91,6 @@ class Demo:
             except Exception:
                 print('Importlib reload Error:')
                 print(traceback.format_exc())
-                time.sleep(3)
+                time.sleep(0.25)
 
         return task.cont
