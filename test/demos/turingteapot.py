@@ -2,7 +2,7 @@
 # No functions are allowed to mutate the app state.
 import numpy as np
 import c
-import TapeyTeapots.main as panda3dsetup
+import TapeyTeapots.pandawrapper as panda3dsetup
 from TapeyTeapots.meshops import quat34, primitives
 
 def simple_init_state(colored_lights=True): # Start simple.
