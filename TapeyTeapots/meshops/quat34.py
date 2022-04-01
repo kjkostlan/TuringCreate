@@ -197,9 +197,10 @@ def qrvTOm44(q,r,v):
 
 def cam44v(cam44, vectors_3xn):
     # "Can a 4x4 matrix describe a camera's perspective"
-    # Point in space => point in camera.
-    # x and y are from -1 to 1, +z is a farther from the camera.
-    # Compute m*v. Then divide by the w coordinate.
+    # Yes: m*v/(m*v)[3], where v is [x,y,z,1].
+    # We use the conventions from: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_model_view_projection
+    # This means that the cube [-1,-1,-1] to [1,1,1] is rendered, and that z=-1 is in front.
+    # Thus camera matrixed tend to have negative determinents.
     vectors_3xn = _expand1(vectors_3xn)
     vectors_4xn = np.ones([4, vectors_3xn.shape[1]]); vectors_4xn[0:3,:] = vectors_3xn
     x = np.matmul(cam44, vectors_4xn)
@@ -216,6 +217,24 @@ def cam44_invv(cam44, vectors_3xn):
     # So we can add w=1 and than invert step 2. The right scalar to multiply that undoes things is w=1.
     # So it IS just inverting the camera matrix. But this function is if this nice fact gets forgotten!
     return cam44v(np.linalg.inv(cam44),vectors_3xn)
+
+def solve_normalized(A):
+    # Solves Ax=0, where A is underdetermined by one DOF and we constrain the solution to have norm 1.
+    nEq = A.shape[0] # We have one more DOF than this.
+    if A.shape[1] != A.shape[0]+1:
+        raise Exception('A is not underdetermined by one DOF.')
+    A1 = np.zeros([nEq+1,nEq+1]); A1[0:nEq,:] = A
+    b1 = np.zeros(nEq+1); b1[nEq] = 1
+    maxDetA = 0.0; ldetA1s = -1e100*np.ones(nEq+1)
+    for i in range(nEq+1): # overkill to loop through all, could break on a threshold log_det.
+        A1[nEq,:] = 0.0; A1[nEq,i] = 1.0
+        _, ldetA1s[i] = np.linalg.slogdet(A1)
+    best_ix = np.argmax(ldetA1s); A1[nEq,:] = 0.0; A1[nEq,best_ix] = 1.0
+    x = np.linalg.solve(A1,b1)
+    x = x/np.sqrt(np.sum(x*x)+1e-100)
+    if np.sum(x)<0:
+        x = -x
+    return x
 
 def solve43(cam44, b4_missing1):
     # Solves cam44*[x,y,z,1]^T = b4_missing1 for x,y, and z.
@@ -239,14 +258,14 @@ def _proj_plane1(origin, normal, v): # Only one vector.
 def _line_plane1(plane_origin, plane_normal, line_origin, line_direction): # Only one vector.
     return coregeom.line_plane_intersection(np.asarray(plane_origin), np.asarray(plane_normal), np.expand_dims(line_origin,1), np.expand_dims(line_direction,1))[:,0]
 
-def magic_sign():
+def magic_sign(): # Setting to +1 will break the unit tests.
     return -1.0
 
 def cam44TOqvfcya(cam44):
     # Converts a perspective camera to a unit Quaternion, Camera location, and f-number.
-    # q = rotation of camera (3 DOF)
+    # q = rotation of camera. Identity q means camera camera points in -z direction (3 DOF)
     # v = location of center of camera (3 DOF)
-    # f is kindof the f-number. A 90 degree FOV is an f of 1.0 and telophotos would be f>10. (1 DOF)
+    # f is kindof the f-number, frustem depth/width. A 90 degree FOV is an f of 1.414, telophotos are f>10. (1 DOF)
     # c is the [near, far] clipping plane. For very weird cameras far can be nearer. (2 DOF)
     # y = [y-stretch, y shear in x direction] of the camera image. Usually [1,0] (2 DOF)
     # a = Clipping plane shear slope (applied after y), + is away from camera [near-x, near-y, far-x, far-y]. Usually all zero. (4 DOF)
@@ -313,7 +332,7 @@ def qvfcyaTOcam44(q,v,f=1.0,c=None,y=None,a=None):
         a = np.asarray([0.0,0.0,0.0,0.0]) # No toward-away camera shear.
 
     # Undo the math to compute the frustum.
-    q33 = m33_from_q(q); q33[:,2] = magic_sign()*q33[:,2]
+    q33 = m33_from_q(np.asarray(q)); q33[:,2] = magic_sign()*q33[:,2]
     center0 = v+q33[:,2]*c[0]; center1 = v+q33[:,2]*c[1]
 
     right0a = center0 + c[0]*q33[:,0]/f
@@ -334,12 +353,13 @@ def qvfcyaTOcam44(q,v,f=1.0,c=None,y=None,a=None):
     # However, we can use the frustom constraints to for the matrix as a 16-long vector.
     # Then get the 16 constraints on it and solve the 16x16 linear system.
     #cam44[i,j] = camu[4*i+j] is the 'C' reshape option we use.
-    A = np.zeros([16,16]); b = np.zeros([16])
+    A = np.zeros([15,16]);
     # 16 constraints: (Hint: equations are kind of written backwards). 15/16 of the b-values stay zero.
     v4 = _v4_from_v(v); c04 = _v4_from_v(center0); c14 = _v4_from_v(center1);
     r04 = _v4_from_v(right0); r14 = _v4_from_v(right1);
     t04 = _v4_from_v(top0); t14 = _v4_from_v(top1);
 
+    # There are 15 constraints that specify A up to a scalar constant, i.e. specify Ax=0
     cix = 0; # Cix = constraint ix. Each new constraint is a different row of the the 16x16 matrix.
     A[cix, 0*4+0:0*4+4] = v4; cix = cix+1 # Origin, x=0.
     A[cix, 1*4+0:1*4+4] = v4; cix = cix+1 # Origin, y=0.
@@ -356,17 +376,18 @@ def qvfcyaTOcam44(q,v,f=1.0,c=None,y=None,a=None):
     A[cix, 2*4+0:2*4+4] = c14; A[cix, 3*4+0:3*4+4] = -c14; cix = cix+1 # Center1, z-w = 0
     A[cix, 2*4+0:2*4+4] = t14; A[cix, 3*4+0:3*4+4] = -t14; cix = cix+1 # Top1, z-w=0.
     A[cix, 2*4+0:2*4+4] = r14; A[cix, 3*4+0:3*4+4] = -r14; cix = cix+1 # Right1, z-w=0.
-    A[cix, 3*4+3] = 1.0; b[cix] = 1.0; cix = cix+1; # Normalization: x[15] = 1 # All 16 constraints.
-    # Redundant: Center1, x=0 and center1 y=0 (constrained by origin and center0)
+    #best_ix = np.argmax(detAs); A[cix,:] = 0.0; A[cix,best_ix] = 1.0
+    #cix = cix+1; # Now we got to all 16 constraints, making the linear system fully determined.
+    # Note about some redundant constraints that are not needed: Center1, x=0 and center1 y=0 (constrained by origin and center0)
     # Top1, x=0 and y=w (constrained by origin and top0). Same idea with right1.
     # Note: There are 3 x-only, 3 y-only, 3 z-w, 3 z+w, 1 w, 1 x-w, 1 y-w, and the camw[3,3]=1
     # This means the 16x16 solve is overkill. Instead, we could get 1D solutions for
     # x,y,z-w, and z+w, and then solve the smaller 4x4 system.
-    camu = np.linalg.solve(A,b)
+    camu = solve_normalized(A)
     debug_show_A = False
     if debug_show_A:
         print('A:')
-        for i in range(16):
+        for i in range(15):
             print('Row:'+str(i)+':',A[i,:])
         print('|A|=',np.linalg.det(A))
         print('Ax:',np.einsum('ij,j->i',A,camu))
@@ -380,29 +401,34 @@ def qvfcyaTOcam44(q,v,f=1.0,c=None,y=None,a=None):
         print('Test right1:', cam44v(cam44, right1)[:,0], 'vs', [1,0,1])
         print('Test top0:', cam44v(cam44, top0)[:,0], 'vs', [0,1,-1])
         print('Test top1:', cam44v(cam44, top1)[:,0], 'vs', [0,1,1])
+    # Normalize:
+    cam44 = cam44/np.sqrt(np.sum(cam44*cam44)+1e-100)
+    if np.sum(cam44)<0:
+        cam44 = -cam44
     return cam44
 
-def cam_ray(camera44, screenx, screeny, start_at_origin=False): # 0 = center of screen.
+def cam_near_far(camera44, screenx, screeny, start_at_origin=False):
+    # Returns [point at near clipping plane, point at far clipping plane]
+    # 0 = center of screen, square screen from -1 to 1.
     # Set start_at_origin to true to override the start at near clipping plane.
     # (but will only work for perspective cameras).
-    camera44 = camera44/camera44[3,3]
-    camera33 = camera44[0:3,0:3]
-    row3 = np.expand_dims(camera44[3,0:3],0)
-    col3 = camera44[0:3,3]
-    if start_at_origin:
-        near_clip = solve43(camera44, [0,0,None,0])
-    else:
-        screen_vec_near = [screenx, screeny, -1]
-        near_clip = np.linalg.solve(camera33-row3*np.expand_dims(screen_vec_near,1), screen_vec_near-col3)
-    screen_vec_far = [screenx, screeny, 1]
-    far_clip = np.linalg.solve(camera33-row3*np.expand_dims(screen_vec_far,1), screen_vec_far-col3)
+    # camera(v) = (m*v)/(m*v)_w, with v a 4-vector. Doubling v (including the w term) does not change it.
+    # Solve: camera44*[x,y,z,w] = [screenx, screeny, +-1, 1], then scale w to 1.
 
-    return near_clip, _v1(far_clip-near_clip)
+    def cam_solve(clip):
+        xyzw = np.linalg.solve(camera44, clip)
+        return xyzw[0:3]/xyzw[3]
+    if start_at_origin:
+        near_clip = cam_solve([screenx,screeny,0,1])
+    else:
+        near_clip = cam_solve([screenx,screeny,-1,1])
+    far_clip = cam_solve([screenx,screeny,1,1])
+    return near_clip, far_clip
 
 def cam_plane_normal(camera44):
-    # The point in 3d space that points directly away from the camera.
-    origin, direction = cam_ray(camera, 0.0, 0.0)
-    return direction
+    # Points directly away from the camera.
+    near_clip, far_clip = cam_near_far(camera, 0.0, 0.0)
+    return _v1(far_clip-near_clip)
 
 def camq_from_look(look, up=None):
     # Looks in the direction look, put tries to put "up" on the screen "up" in the world.

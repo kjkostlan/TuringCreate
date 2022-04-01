@@ -122,10 +122,11 @@ def camera_tests():
 
     # Test camera to-from (BIG TEST):
     for i in range(16):
-        camera44 = np.random.randn(4,4); camera44[3,3] = 1.0
+        camera44 = np.random.randn(4,4); #camera44[3,3] = 1.0
         q, v, f, c, y, a = qmv.cam44TOqvfcya(camera44)
         camera44_green = qmv.qvfcyaTOcam44(q,v,f,c=c,y=y,a=a)
-        tests.append(tmetric.approx_eq(camera44,camera44_green))
+        camera44_green1 = camera44_green*camera44[0,0]/camera44_green[0,0]
+        tests.append(tmetric.approx_eq(camera44,camera44_green1))
         q_, v_, f_, c_, y_, a_ = qmv.cam44TOqvfcya(camera44_green)
 
         tests.append(tmetric.approx_eq([q, v, f, c, y, a],[q_, v_, f_, c_, y_, a_]))
@@ -142,11 +143,18 @@ def camera_tests():
     center1_green = qmv.cam44v(cam44,np.expand_dims(v+look_dir*c[1],1))[:,0]
     tests.append(tmetric.approx_eq([0,0,1],center1_green))
 
+    # Test camera ray for v=0, which caused problems with singularities but was later fixed.
+    cam44_origin = qmv.qvfcyaTOcam44([1,0,0,0],[0,0,0],1.0,[1/123.0,456.0])
+    near_clip_pt, far_clip_pt = qmv.cam_near_far(cam44_origin, screenx=0.0, screeny=0.0, start_at_origin=False)
+    tests.append(tmetric.approx_eq(near_clip_pt,[0,0,-1/123.0]))
+    tests.append(tmetric.approx_eq(far_clip_pt,[0,0,-456.0]))
+
     # Test raycasting for perspective cameras:
     for i in range(16):
         camera44 = np.random.randn(4,4)
         screenxy = np.random.randn(2)
-        near_clip, direction = qmv.cam_ray(camera44, screenxy[0], screenxy[1])
+        near_clip, far_clip = qmv.cam_near_far(camera44, screenxy[0], screenxy[1])
+        direction = far_clip-near_clip; direction = direction/np.linalg.norm(direction)
         q, v, f, c, y, a = qmv.cam44TOqvfcya(camera44)
         cam_inv = np.linalg.inv(camera44) # invert is the gold standard.
         direction_gold = qmv._v1(qmv.cam44v(cam_inv, np.expand_dims([screenxy[0], screenxy[1], 1.0],1))[:,0]-
