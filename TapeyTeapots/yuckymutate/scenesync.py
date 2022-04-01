@@ -1,5 +1,6 @@
 from panda3d.core import *
 import numpy as np
+from TapeyTeapots.meshops import quat34
 
 # Helper functions:
 def vert_uvs(mesh, k=0):
@@ -120,9 +121,8 @@ def buildMesh(name, mesh):
     #print(dir(nodey))
     return nodey
 
-
 def buildMesh3(name, mesh):
-    # Returns point mesh, line mesh, face mesh.
+    # Returns meshes that show what is selected. Some or all returned meshes may be None.
     # The point and line meshes show what is selected.
     # is_vert_selected = is each vert selected, [nVert], Optional.
     #   Can also use selected_verts.
@@ -130,6 +130,8 @@ def buildMesh3(name, mesh):
        # Can NOT use is_edge_selected, as we do not have an edge array in the mesh.
     # is_face_selected = [nFace], optional.
     #   Can also use selected_faces.
+    if mesh is None:
+        return {'point_mesh':None, 'edge_mesh':None, 'face_mesh':None}
     nVert = mesh['verts'].shape[1]
     nFace = mesh['faces'].shape[1]
 
@@ -143,7 +145,7 @@ def buildMesh3(name, mesh):
     if np.sum(sel_face)>=0.5:
         # Colors are per vert, so verts with more selected faces get more yellow.
         colors = np.copy(mesh.get('colors', np.tile([0,0,1,1],[1,nVert])))
-        
+
         sel_weight = np.zeros([nVert,1])
         for i in range(nFace):
             if sel_face[i] >= 0.5:
@@ -162,7 +164,7 @@ def buildMesh3(name, mesh):
         point_mesh = buildPointcloud(name+'points', sel_points)
     if np.size(sel_edge)>0:
         edge_mesh = buildWireframe(name+'edges', {'verts':mesh['verts'], 'edges':sel_edge>=0.5})
-    return point_mesh, edge_mesh, face_mesh
+    return {'point_mesh':point_mesh, 'edge_mesh':edge_mesh, 'face_mesh':face_mesh}
 
 def np2panda_44(mat44_np):
     mat44_np = np.transpose(mat44_np) # TODO: do we need this?
@@ -207,44 +209,48 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
         return
     old_mesh = old_render_branch.get('mesh', None)
     new_mesh = new_render_branch.get('mesh', None)
-    
+
     old_text = old_render_branch.get('text', None)
     new_text = new_render_branch.get('text', None)
-    
+
     mat44 = np.matmul(new_render_branch.get('mat44', np.identity(4)), mat44_ancestors)
 
     change_mesh = old_mesh is not new_mesh
     change_text = old_text is not new_text
     change_xform = old_render_branch.get('mat44', np.identity(4)) is not new_render_branch.get('mat44',np.identity(4))
 
-    kys3 = ['mesh_verts','mesh_edges','mesh_faces']
-    myMeshes = [panda_objects_branch.get(k,None) for k in kys3]
+    mesh_keys = list(buildMesh3('None',None).keys())
+    mesh_panda_objs = [panda_objects_branch.get(k,None) for k in mesh_keys]
 
-    if change_mesh: #Thus updates myMeshes
-        for myMesh in myMeshes:
-            if myMesh is not None:
-                myMesh.removeNode()
+    if change_mesh:
+        for mesh_obj in mesh_panda_objs:
+            if mesh_obj is not None:
+                mesh_obj.removeNode()
         if new_mesh is not None:
             #myMesh = buildMesh('meshy',new_mesh)
-            myMeshes = buildMesh3('meshy', new_mesh)
-            for i3 in range(3):
-                myMesh = myMeshes[i3]
-                panda_objects_branch[kys3[i3]] = myMesh
-                if myMesh is not None:
-                    myMesh.reparent_to(pivot)
+            mesh_panda_objs_new = buildMesh3('meshy', new_mesh)
+            for k in mesh_keys:
+                obj_new = mesh_panda_objs_new[k]
+                panda_objects_branch[k] = obj_new
+                if obj_new is not None:
+                    obj_new.reparent_to(pivot)
                     #if i3==2:
                     #    myMesh.set_light(light)
         #elif 'mesh' in panda_objects_branch:
         else:
-            for ky in kys3:
+            for ky in mesh_keys:
                 if ky in panda_objects_branch:
                     del panda_objects_branch[ky]
     if (change_mesh or change_xform):
         xform = np2panda_44(mat44)
-        for myMesh in myMeshes:
-            if myMesh is not None:
-                myMesh.set_transform(xform)
-    
+        #for myMesh in myMeshes: # myMesh.removeNode() means myMesh is invalid, I think need to use panda_objects_branch instead.
+        #    if myMesh is not None:
+        #        myMesh.set_transform(xform)
+        for k in mesh_keys:
+            if k in panda_objects_branch:
+                if panda_objects_branch[k] is not None:
+                    panda_objects_branch[k].set_transform(xform)
+
     text_ob = panda_objects_branch.get('text',None)
     if change_text:
         if text_ob is not None:
@@ -279,12 +285,42 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
         elif change_xform and ch_new is not None:
             update_xforms(ch_new, mat44, panda_branch1)
 
+def sync_camera(cam44_old, cam44, cam_obj):
+    # Camera math: Our camera xform is remove_w(norm_w(cam44*add_w(x)))
+    # add_w adds w=1 to a 3 vector. norm_w divides by the w term.
+    # Note: this is different than the standard 4x4 matrix for 3d xforms.
+    # We set our own cam_xform on Panda's camera, which is the SAME as how 4x4 matrix.
+    # We need to make Panda3d and our system equivalent:
+    # remove_w(norm_w(cam44_panda*((cam_xform)^(-1)*add_w(x)))) = remove_w(norm_w(cam44*add_w(x)))
+    # Which will be true if the matrix parts are the same:
+    # cam44_panda*(cam_xform)^(-1) = cam44 => cam44_panda = cam44*cam_xform
+    # So we have: cam_xform = (cam44^-1)*cam44_panda
+
+    # The default camera points in the +y direction, while our ident q points in the -z direction:
+    q = [np.sqrt(0.5),np.sqrt(0.5),0,0]
+    lens = base.camLens;
+    f = np.sqrt(2.0); lens.setFov(90.0); c = [0.01, 100]; lens.setNearFar(c[0], c[1])
+    cam44_panda = quat34.qvfcyaTOcam44(q, [0,0,0],f,c)
+
+    # TODO: sign of matrix makes bug where everything can disappear.
+    cam_xform = np.matmul(np.linalg.inv(cam44),cam44_panda)
+    #cam_xform[3,1] = np.random.random() # Affects us
+    #cam_xform[1,3] = np.random.random() # Affects us
+    #cam_xform[3,3] = np.random.random() # Affects us
+
+    #
+    #cam_xform[:,3] = [0,0,0,1] # Last row does not matter?
+    #print('Our cam44:\n', cam44, 'det:', np.linalg.det(cam44))
+    #print('Panda cam44:\n', cam44_panda, 'det:', np.linalg.det(cam44_panda))
+    #print('Cam xform:\n', cam_xform, 'det:', np.linalg.det(cam_xform))
+    cam_obj.set_transform(np2panda_44(cam_xform))
+
 def sync(old_state, new_state, panda_objects, the_magic_pivot):
     old_render = old_state.get('render',{})
     new_render = new_state.get('render',{})
     lights_old = old_state.get('lights',[])
     lights_new = new_state.get('lights',[])
-    
+
     if lights_new is not lights_old: # Any change will trigger all lights to be set to the root.
         for old_light in panda_objects.get('das_blinkin_lights',[]):
             old_light.removeNode()
@@ -292,14 +328,15 @@ def sync(old_state, new_state, panda_objects, the_magic_pivot):
         for lightp in lights_panda_new:
             the_magic_pivot.set_light(lightp)
         panda_objects['das_blinkin_lights'] = lights_panda_new
-    
+
     sync_renders(old_render, new_render, np.identity(4), panda_objects, the_magic_pivot)
 
     #{'pos':[0,-10,0],'look':[0,1,0],'fov':1.25}
     #panda_objects['cam'].set_x(new_state['camera']['pos'][0])
     #panda_objects['cam'].set_y(new_state['camera']['pos'][1])
     #panda_objects['cam'].set_z(new_state['camera']['pos'][2])
-
-    #mat44_np = np.identity(4) #new_state['camera']['look'][0]
-    xform_camera = np2panda_44(new_state['camera']['mat44'])
-    panda_objects['cam'].set_transform(xform_camera)
+    if 'camera' in old_state:
+        old_camera = old_state['camera']['mat44']
+    else:
+        old_camera = None
+    sync_camera(old_camera, new_state['camera']['mat44'], panda_objects['cam'])
