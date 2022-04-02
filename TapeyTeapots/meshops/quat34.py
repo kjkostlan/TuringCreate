@@ -88,7 +88,7 @@ def q_from_polarshift(pole0, pole1): # Shifts pole0 into pole1
     return np.asarray([real, imag[0], imag[1], imag[2]])
 
 def m44_from_m33(m33):
-    out = np.zeros([4,4])
+    out = np.identity(4)
     out[0:3, 0:3] = m33
     return out
 
