@@ -1,6 +1,7 @@
 from panda3d.core import *
 import numpy as np
 from TapeyTeapots.meshops import quat34
+from direct.gui.OnscreenText import OnscreenText
 
 # Helper functions:
 def vert_uvs(mesh, k=0):
@@ -315,6 +316,26 @@ def sync_camera(cam44_old, cam44, cam_obj):
     #print('Cam xform:\n', cam_xform, 'det:', np.linalg.det(cam_xform))
     cam_obj.set_transform(np2panda_44(cam_xform))
 
+def sync_onscreen_text(panda_objects, old_state, new_state):
+    # Onscreen text is a very system system that does not care about the camera, etc.
+    old_text = old_state.get('onscreen_text',None)
+    new_text = new_state.get('onscreen_text',None)
+    txt_obj = panda_objects.get('onscreen_text', None)
+    if old_text is not new_text: # Any change.
+        if txt_obj is not None:
+            txt_obj.destroy()
+        if new_text is not None:
+            pos = new_text.get('pos',[0.0,0.0]); scale = new_text.get('scale', 0.07)
+            color = new_text.get('color',[0,0,0,1])
+            if 'xy' in new_text:
+                pos = new_text['xy']
+            if 'x' in new_text:
+                pos[0] = new_text['x']
+            if 'y' in new_text:
+                pos[1] = new_text['y']
+            textObject = OnscreenText(text=new_text['text'], pos=pos, scale=scale, fg=color)
+            panda_objects['onscreen_text'] = textObject
+
 def sync(old_state, new_state, panda_objects, the_magic_pivot):
     old_render = old_state.get('render',{})
     new_render = new_state.get('render',{})
@@ -340,3 +361,4 @@ def sync(old_state, new_state, panda_objects, the_magic_pivot):
     else:
         old_camera = None
     sync_camera(old_camera, new_state['camera']['mat44'], panda_objects['cam'])
+    sync_onscreen_text(panda_objects, old_state, new_state)
