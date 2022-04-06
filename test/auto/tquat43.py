@@ -79,14 +79,16 @@ def matrix_quat_tests(): # The BIG ONE.
     # Quaternion to/from matrix conversion.
     np.random.seed(99999)
     for i in range(16):
-        q = random_qs(1)[0]
+        q_gold = random_qs(1)[0]
         points = np.random.randn(3,8)
-        q33 = qmv.m33_from_q(q)
-        qA, r = qmv.m33TOqr(qmv.m33_from_q(q))
-        points1 = qmv.m33v(q33, points)
-        points1A = qmv.qv(qA, qmv.m33v(r, points))
-        tests.append(tmetric.approx_eq(points1,points1A))
-        # Note: qmv.qrTOm33(q,r) does not always equal q33 b/c r may have -1 instead of 1.
+        m33 = qmv.m33_from_q(q_gold)
+        q_green, r = qmv.m33TOqr(qmv.m33_from_q(q_gold))
+        points_A = qmv.m33v(m33, points)
+        points_B = qmv.qv(q_green, qmv.m33v(r, points))
+        tests.append(tmetric.approx_eq(points_A, points_B))
+        if q_gold[0]*q_green[0]<0: #because SU(2) double-covers SO(3)
+            q_green = -q_green
+        tests.append(tmetric.approx_eq(q_gold, q_green))
 
         # Use a random matrix, instead of quaternions. Internally uses 3x3 matrixes.
         m44 = random_4x4_matrixes(1)[0]

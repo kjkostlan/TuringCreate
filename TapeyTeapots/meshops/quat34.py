@@ -146,7 +146,18 @@ def qrTOm33(q, r): # q-r decomposition, but q is quaternion.
 
 def m33TOqr(m33): # q-r decomposition, but q is quaternion.
     q33,r = np.linalg.qr(m33)
-    return q33TOq(q33),r
+    a = None # Cancel 2 negative signs so that r is close to the identity.
+    if np.linalg.det(q33)<0: # Why do they not guarantee det=1?
+        q33 = -q33; r = -r
+    if r[0,0]<0 and r[1,1]<0:
+        a = np.identity(3); a[0,0] = -1; a[1,1] = -1; # a^-1 = a
+    if r[0,0]<0 and r[2,2]<0:
+        a = np.identity(3); a[0,0] = -1; a[2,2] = -1; # a^-1 = a
+    if r[1,1]<0 and r[2,2]<0:
+        a = np.identity(3); a[1,1] = -1; a[2,2] = -1; # a^-1 = a
+    if a is not None:
+        q33 = np.matmul(q33,a); r = np.matmul(a,r) # put an a^-1 a in the middle, with a^-1 = a.
+    return q33TOq(q33), r
 
 def axisangleTOq(axis, radians):
     # Counter clockwise if the axis is pointed at you.
