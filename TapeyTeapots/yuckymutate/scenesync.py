@@ -87,14 +87,14 @@ def buildMesh(name, mesh):
     nVert = verts.shape[1]
     nFace = tris.shape[1]
 
-    # For now, use uvs into colors:
-    # Anoter part from: https://discourse.panda3d.org/t/new-procedural-geometry-samples/24882
+    # See also: https://discourse.panda3d.org/t/new-procedural-geometry-samples/24882
     vertex_format = GeomVertexFormat.get_v3n3c4t2()
     vertex_data = GeomVertexData(name, vertex_format, Geom.UH_static)
     pos_writer = GeomVertexWriter(vertex_data, "vertex")
     normal_writer = GeomVertexWriter(vertex_data, "normal")
     col_writer = GeomVertexWriter(vertex_data, "color")
     uv_writer = GeomVertexWriter(vertex_data, "texcoord")
+
     # the normal is the same for all vertices. TODO: fix this!
     normal = (0., -1., 0.)
     for i in range(nVert):
@@ -119,7 +119,6 @@ def buildMesh(name, mesh):
     node = GeomNode(name)
     node.add_geom(geom)
     nodey = NodePath(node)
-    #print(dir(nodey))
     return nodey
 
 def buildMesh3(name, mesh):
@@ -176,13 +175,14 @@ def np2panda_44(mat44_np):
     return TransformState.makeMat(mat44_panda)
 
 def light2panda(light, the_pivot):
-    pos = light.get('pos', [0,0,0])
-    col = light.get('color', [1,1,1,1])
+    col = light.get('color', [16,16,16,1])
     # TODO: more kinds of lights.
     light_node = PointLight("point_light")
     light_node.setColor((col[0],col[1],col[2],col[3]))
     light_panda_obj = the_pivot.attach_new_node(light_node)
+    pos = light.get('pos', [0,0,0]) # TODO: fit lights into the standard object tree.
     light_panda_obj.setPos(pos[0], pos[1], pos[2])
+    light_node.attenuation = (1, 0, 1)
     return light_panda_obj
 
 ################################################################################
@@ -214,11 +214,18 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
     old_text = old_render_branch.get('text', None)
     new_text = new_render_branch.get('text', None)
 
-    mat44 = np.matmul(new_render_branch.get('mat44', np.identity(4)), mat44_ancestors)
+    mat44_this = np.identity(4)
+    if 'mat44' in new_render_branch:
+        mat44_this = new_render_branch['mat44']
+    if 'pos' in new_render_branch: # Shortcut when no need to rotate, shear, or scale.
+        mat44_tmp = np.identity(4); mat44_tmp[0:3,3] = new_render_branch['pos']
+        mat44_this = np.matmul(mat44_tmp,mat44_this)
+    mat44 = np.matmul(mat44_this, mat44_ancestors)
 
     change_mesh = old_mesh is not new_mesh
     change_text = old_text is not new_text
-    change_xform = old_render_branch.get('mat44', np.identity(4)) is not new_render_branch.get('mat44',np.identity(4))
+    ident_m44 = np.identity(4)
+    change_xform = old_render_branch.get('mat44', ident_m44) is not new_render_branch.get('mat44', ident_m44)
 
     mesh_keys = list(buildMesh3('None',None).keys())
     mesh_panda_objs = [panda_objects_branch.get(k,None) for k in mesh_keys]
@@ -235,18 +242,13 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
                 panda_objects_branch[k] = obj_new
                 if obj_new is not None:
                     obj_new.reparent_to(pivot)
-                    #if i3==2:
-                    #    myMesh.set_light(light)
-        #elif 'mesh' in panda_objects_branch:
         else:
             for ky in mesh_keys:
                 if ky in panda_objects_branch:
                     del panda_objects_branch[ky]
     if (change_mesh or change_xform):
         xform = np2panda_44(mat44)
-        #for myMesh in myMeshes: # myMesh.removeNode() means myMesh is invalid, I think need to use panda_objects_branch instead.
-        #    if myMesh is not None:
-        #        myMesh.set_transform(xform)
+
         for k in mesh_keys:
             if k in panda_objects_branch:
                 if panda_objects_branch[k] is not None:
@@ -258,16 +260,36 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
             text_ob.removeNode()
         if new_text is not None:
             text_ob0 = TextNode('texty')
-            text_ob0.set_text(new_text['string'])
-            if 'font' in new_text:
-                text_ob0.setFont(loader.loadFont(text_ob['font']))
+            text_ob0.set_text(new_text['text'])
+            if 'font' in new_text: # Various optional properties.
+                text_ob0.setFont(loader.loadFont(new_text['font']))
+            if 'small_caps_scale' in new_text:
+                text_ob0.setSmallCaps(True)
+                text_ob0.setSmallCapsScale(new_text['small_caps_scale'])
+            if 'slant' in new_text:
+                text_ob0.setSlant(new_text['slant'])
+            if 'shadow' in new_text:
+                text_ob0.setShadow(new_text['shadow'])
+            if 'shadow_color' in new_text:
+                text_ob0.setShadowColor(new_text['shadow_color'])
+            if 'color' in new_text:
+                text_ob0.setTextColor(LVecBase4f(*new_text['color']))
+            if 'word_wrap' in new_text:
+                text_ob0.setWordwrap(new_text['word_wrap'])
+            align = new_text.get('align', 'center')
+            if align == 'center':
+                text_ob0.setAlign(TextNode.ACenter)
+            elif align=='left':
+                text_ob0.setAlign(TextNode.ALeft)
+            elif align=='right':
+                text_ob0.setAlign(TextNode.ARight)
             text_ob = NodePath(text_ob0)
+            #text_ob.setLightOff() # Option to display the color as-is.
             text_ob.reparent_to(pivot)
             panda_objects_branch['text'] = text_ob
     if (change_text or change_xform) and (new_text is not None):
         xform = np2panda_44(mat44)
         text_ob.set_transform(xform)
-
     children_old = old_render_branch.get('children', {})
     children_new = new_render_branch.get('children', {})
     k_set = set(list(children_old.keys())+list(children_new.keys()))
@@ -305,15 +327,7 @@ def sync_camera(cam44_old, cam44, cam_obj):
 
     # TODO: sign of matrix makes bug where everything can disappear.
     cam_xform = np.matmul(np.linalg.inv(cam44),cam44_panda)
-    #cam_xform[3,1] = np.random.random() # Affects us
-    #cam_xform[1,3] = np.random.random() # Affects us
-    #cam_xform[3,3] = np.random.random() # Affects us
 
-    #
-    #cam_xform[:,3] = [0,0,0,1] # Last row does not matter?
-    #print('Our cam44:\n', cam44, 'det:', np.linalg.det(cam44))
-    #print('Panda cam44:\n', cam44_panda, 'det:', np.linalg.det(cam44_panda))
-    #print('Cam xform:\n', cam_xform, 'det:', np.linalg.det(cam_xform))
     cam_obj.set_transform(np2panda_44(cam_xform))
 
 def sync_onscreen_text(panda_objects, old_state, new_state):
@@ -334,6 +348,13 @@ def sync_onscreen_text(panda_objects, old_state, new_state):
             if 'y' in new_text:
                 pos[1] = new_text['y']
             textObject = OnscreenText(text=new_text['text'], pos=pos, scale=scale, fg=color)
+            align = new_text.get('align', 'center')
+            if align == 'center':
+                textObject.setAlign(TextNode.ACenter)
+            elif align=='left':
+                textObject.setAlign(TextNode.ALeft)
+            elif align=='right':
+                textObject.setAlign(TextNode.ARight)
             panda_objects['onscreen_text'] = textObject
 
 def sync(old_state, new_state, panda_objects, the_magic_pivot):
@@ -341,21 +362,26 @@ def sync(old_state, new_state, panda_objects, the_magic_pivot):
     new_render = new_state.get('render',{})
     lights_old = old_state.get('lights',[])
     lights_new = new_state.get('lights',[])
+    
+    if new_state.get('show_fps',False):
+        base.setFrameRateMeter(True)
+    else:
+        base.setFrameRateMeter(False)
 
     if lights_new is not lights_old: # Any change will trigger all lights to be set to the root.
-        for old_light in panda_objects.get('das_blinkin_lights',[]):
-            old_light.removeNode()
+        render.clear_light()
+        if type(lights_new) is dict:
+            lights_new = list(lights_new.values())
+        for lightp in panda_objects.get('das_blinkin_lights',[]):
+            render.clear_light(lightp)
+            lightp.removeNode()
         lights_panda_new = [light2panda(light, the_magic_pivot) for light in lights_new]
         for lightp in lights_panda_new:
-            the_magic_pivot.set_light(lightp)
+            render.set_light(lightp)
         panda_objects['das_blinkin_lights'] = lights_panda_new
 
     sync_renders(old_render, new_render, np.identity(4), panda_objects, the_magic_pivot)
 
-    #{'pos':[0,-10,0],'look':[0,1,0],'fov':1.25}
-    #panda_objects['cam'].set_x(new_state['camera']['pos'][0])
-    #panda_objects['cam'].set_y(new_state['camera']['pos'][1])
-    #panda_objects['cam'].set_z(new_state['camera']['pos'][2])
     if 'camera' in old_state:
         old_camera = old_state['camera']['mat44']
     else:

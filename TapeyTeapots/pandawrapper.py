@@ -11,7 +11,7 @@ from TapeyTeapots.yuckymutate import scenesync, mousekey
 import reload
 import numpy as np
 
-class Demo:
+class App:
 
     def __init__(self, initial_state, every_frame_fn):
 
