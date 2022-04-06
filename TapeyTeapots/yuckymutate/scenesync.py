@@ -76,45 +76,53 @@ def buildWireframe(name, wireframe):
 
 def buildMesh(name, mesh):
     # Verts is [nVert,3], tris is [nFace,3] and is int not float.
-    # uvs is [nVert,2] Note: Different from blender which allows seams and is {layer:[nFace, 3,2]}
+    # uvs is [3,nFace,2,k] Note: Blender is {layer:[nFace, 3,2]}. For now we only care about k=0.
     # colors is [nVert, 4], float 0-1 rgba.
     verts = mesh['verts']
-    tris = mesh['faces']
+    faces = mesh['faces']
     uvs = mesh.get('uvs',None)
     if uvs is not None:
-        vuvs = vert_uvs(mesh)
+        uvs = uvs[:,:,:,0]
     colors = mesh.get('colors', None)
-    nVert = verts.shape[1]
-    nFace = tris.shape[1]
+    nVert = verts.shape[1] # Panda3D will get an exploded mesh, giving it nFace*3 verts not nVert verts.
+    nFace = faces.shape[1]
 
+    # The mesh is exploded into individual triangles.
+    # For now we flat shade with no normal interpolation, although it would not be too hard to change this.
     # See also: https://discourse.panda3d.org/t/new-procedural-geometry-samples/24882
     vertex_format = GeomVertexFormat.get_v3n3c4t2()
     vertex_data = GeomVertexData(name, vertex_format, Geom.UH_static)
     pos_writer = GeomVertexWriter(vertex_data, "vertex")
     normal_writer = GeomVertexWriter(vertex_data, "normal")
-    col_writer = GeomVertexWriter(vertex_data, "color")
+    if colors is not None:
+        col_writer = GeomVertexWriter(vertex_data, "color")
     uv_writer = GeomVertexWriter(vertex_data, "texcoord")
 
-    # the normal is the same for all vertices. TODO: fix this!
-    normal = (0., -1., 0.)
-    for i in range(nVert):
-        pos_writer.add_data3(*verts[:,i])
-        normal_writer.add_data3(normal)
-        if colors is not None:
-            col_writer.add_data4(*colors[:,i])
-        if uvs is not None:
-            uv_writer.add_data2(*vuvs[:,i])
+    for i in range(nFace):
+        v012 = verts[:,faces[:,i]]
+        normal = np.cross(v012[:,2]-v012[:,0], v012[:,1]-v012[:,0])
+        normal = normal/np.linalg.norm(normal+1e-100)
+        for o in range(3):
+            pos_writer.add_data3(*v012[:,o])
+            if colors is not None:
+                col_writer.add_data4(*colors[:,faces[o,i]])
+            normal_writer.add_data3(*normal)
+            if uvs is None:
+                uv_writer.add_data2(o==0,o==1)
+            else:
+                uv_writer.add_data2(*uvs[o,i,:])
 
     tris_prim = GeomTriangles(Geom.UH_static)
     tris_prim.reserve_num_vertices(int(3*nFace+0.5))
 
     for i in range(nFace):
-         tris_prim.add_vertices(*tris[:,i])
+         tris_prim.add_vertices(*[3*i, 3*i+1, 3*i+2])
     tris_prim.close_primitive()
 
     # create a Geom and add the primitive to it
     geom = Geom(vertex_data)
     geom.add_primitive(tris_prim)
+
     # finally, create a GeomNode, add the Geom to it and wrap it in a NodePath
     node = GeomNode(name)
     node.add_geom(geom)

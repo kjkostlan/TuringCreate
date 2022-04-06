@@ -170,7 +170,7 @@ def panda3d_render_sync_test():
         return c.assoc_in(app_state,['render','children',rand_k], new_text)
 
     def create_light_tweak(app_state):
-        light = {'color':np.random.random(4)*1600.0,'pos':np.random.randn(3)*16}
+        light = {'color':np.random.random(4)*400.0,'pos':np.random.randn(3)*16}
         light['color'][3] = 1.0
         rand_k = str(np.random.random())
         #new_light = {'light':light,'pos':np.random.randn(3)*4}
@@ -311,7 +311,7 @@ def panda3d_camerademo():
     y = [1, 0] # [y-stretch, y shear in x direction] of the camera image. Usually [1,0] (2 DOF)
     a = [0.0,0,0,0] # Far clipping plane shear slope (applied after y), + is away from camera [near-x, near-y, far-x, far-y]. Usually all zero. (4 DOF)
     cam44 = quat34.qvfcyaTOcam44(q,v,f,c=cl,y=y,a=a)
-    app_state = simple_init_state()
+    app_state = simple_init_state(); app_state['show_fps'] = True
     #all_meshes = {**make_cube_grid(),**corners}
     app_state = c.assoc_in(app_state,['render', 'children'], make_cube_grid())
 
