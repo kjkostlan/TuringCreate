@@ -35,15 +35,15 @@ def cube():
     return mesh
 
 def sphere(resolution=32):
-    # Latitude and longetude.
+    # Latitude and longitude.
     resolution = max(resolution,3)
     fencepost = (resolution-1.0)/resolution
     theta = np.linspace(0,2.0*np.pi*fencepost,resolution)
     phi = np.linspace(-0.5*np.pi,0.5*np.pi,resolution)
 
     # Poles are at end.
-    x = np.outer(np.cos(theta), np.sin(phi[1:-1]))
-    y = np.outer(np.sin(theta), np.sin(phi[1:-1]))
+    x = np.outer(np.cos(theta), np.cos(phi[1:-1]))
+    y = np.outer(np.sin(theta), np.cos(phi[1:-1]))
     z = np.outer(np.ones_like(theta),np.sin(phi[1:-1]))
 
     mesh = {}
@@ -51,31 +51,30 @@ def sphere(resolution=32):
     mesh['verts'][0,0:-2] = np.reshape(x, resolution*(resolution-2), order='C') # Phi will change faster than theta.
     mesh['verts'][1,0:-2] = np.reshape(y, resolution*(resolution-2), order='C')
     mesh['verts'][2,0:-2] = np.reshape(z, resolution*(resolution-2), order='C')
-    mesh['verts'][:,-2] = [0,0,-1]; mesh['verts'][:,-1] = [0,0,1] # South pole.
+    mesh['verts'][:,-2] = [0,0,-1]; mesh['verts'][:,-1] = [0,0,1] # The poles.
     nFace = 2*resolution*(resolution-3)+2*resolution
     mesh['faces'] = np.zeros([3,nFace], dtype=np.int64)
     mesh['uvs'] = np.zeros([3, nFace,2,1])
     face_ix = 0
-    stride = resolution-2
-    for i in range(resolution): # thetas
+    stride = resolution-2 # phis = latitude = "ones place". thetas = longitude = "tens place".
+    for i in range(resolution): # thetas.
         i1 = (i+1)%resolution
         # South pole:
-        ixs_ccw = [resolution*(resolution-2), i1*stride+1, i*stride+1]
+        ixs_ccw = [resolution*(resolution-2), i1*stride, i*stride]
         _add_tri(mesh, ixs_ccw, face_ix, u0=0.5, v0=0.0, u1=theta[i1]/2.0*np.pi, v1=phi[1]/np.pi+0.5, u2=theta[i]/2.0*np.pi, v2=phi[1]/np.pi+0.5)
         face_ix = face_ix+1
 
-        for j in range(1,resolution-2): # phis
+        for j in range(0,resolution-3): # phis, but off by one.
             j1 = j+1
             ixs_ccw = [i*stride+j, i1*stride+j, i1*stride+j1, i*stride+j1]
             _add_square(mesh, ixs_ccw, face_ix, u0=theta[i]/2.0/np.pi, v0=phi[j]/np.pi+0.5, u1=theta[i1]/2.0*np.pi, v1=phi[j1]/np.pi+0.5)
             face_ix = face_ix+2
 
         # North pole:
-        ixs_ccw = [resolution*(resolution-2)+1, i*stride+(resolution-2), i1*stride+(resolution-2)]
+        ixs_ccw = [resolution*(resolution-2)+1, i*stride+(resolution-3), i1*stride+(resolution-3)]
         _add_tri(mesh, ixs_ccw, face_ix, u0=0.5, v0=1.0, u1=theta[i]/2.0*np.pi, v1=phi[resolution-2]/np.pi+0.5, u2=theta[i1]/2.0*np.pi, v2=phi[resolution-2]/np.pi+0.5)
         face_ix = face_ix+1
 
-    # Extra verts in the poles not attached to edges, oh well.
     return mesh
 
 def cylinder(resolution=32, tallness=1.0):
