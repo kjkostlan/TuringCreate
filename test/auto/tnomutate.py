@@ -1,4 +1,4 @@
-# Tests the non-mutation of c.
+# Tests the correctness and non-mutation of c.
 import c
 
 def _pairwise(pairs):
@@ -10,7 +10,7 @@ def _pairwise(pairs):
 def test_one_level():
     # Tests one-level modifications and ensures they don't actually mutate.
     eq_pairs = []
-    
+
     if _pairwise([[[1,2,3],[1,2,4]]]): # Test the pairwise itself a little.
         return False
 
@@ -43,5 +43,18 @@ def test_multi_level():
     eq_pairs.append([x1, [[[10, 20],2,3],{"ten":10, "twenty":20}]])
     eq_pairs.append([x2, [[1,2,3],{"ten":10, "twenty":22.2}]])
     eq_pairs.append([x3, [[3,2,3],{"ten":10, "twenty":20}]])
+
+    return _pairwise(eq_pairs)
+
+def test_multi_level_more():
+    # A bug slipped through the old tests,
+    x0 = {'a':{'b':{'c':{'no':'Delete me','yes':'Keep me'}}}}
+    def update_fn(y):
+        return c.dissoc(y,'no')
+    x1 = c.update_in(x0,['a','b','c'],update_fn)
+    x0_gold = {'a':{'b':{'c':{'no':'Delete me','yes':'Keep me'}}}}
+    x1_gold = {'a':{'b':{'c':{'yes':'Keep me'}}}}
+
+    eq_pairs = [[x0_gold, x0], [x1_gold, x1]]
 
     return _pairwise(eq_pairs)

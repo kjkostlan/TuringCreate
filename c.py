@@ -14,6 +14,12 @@ def assoc(x, k, v):
     x1[k] = v
     return x1
 
+def dissoc(x,k):
+    if k in x:
+        x = x.copy()
+        del x[k]
+    return x
+
 def get_in(x,ks, not_found=None):
     if x is None:
         return not_found
