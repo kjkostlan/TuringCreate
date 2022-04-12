@@ -197,12 +197,12 @@ def light2panda(light, the_pivot):
 
 def update_xforms(new_render_branch, mat44_ancestors, panda_objects_branch):
     # Even if everything stays the same, xforms can change due to changing root xforms.
-    mat44 = np.matmul(new_render_branch.get('mat44', np.identity(4)), mat44_ancestors)
+    #mat44 = np.matmul(new_render_branch.get('mat44', np.identity(4)), mat44_ancestors) # Wrong order.
+    mat44 = np.matmul(mat44_ancestors, new_render_branch.get('mat44', np.identity(4)))
     xform = np2panda_44(mat44)
-    if 'mesh' in panda_objects_branch:
-        panda_objects_branch['mesh'].set_transform(xform)
-    if 'text' in panda_objects_branch:
-        panda_objects_branch['text'].set_transform(xform)
+    for k in list(buildMesh3('',None).keys())+['text']:
+        if k in panda_objects_branch and panda_objects_branch[k] is not None:
+            panda_objects_branch[k].set_transform(xform)
     if 'children' in new_render_branch:
         for ky in new_render_branch['children'].keys():
             update_xforms(new_render_branch['children'][ky], mat44, panda_objects_branch['children'][ky])
@@ -228,7 +228,8 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
     if 'pos' in new_render_branch: # Shortcut when no need to rotate, shear, or scale.
         mat44_tmp = np.identity(4); mat44_tmp[0:3,3] = new_render_branch['pos']
         mat44_this = np.matmul(mat44_tmp,mat44_this)
-    mat44 = np.matmul(mat44_this, mat44_ancestors)
+    #mat44 = np.matmul(mat44_this, mat44_ancestors) # Wrong order.
+    mat44 = np.matmul(mat44_ancestors, mat44_this)
 
     change_mesh = old_mesh is not new_mesh
     change_text = old_text is not new_text
@@ -370,7 +371,7 @@ def sync(old_state, new_state, panda_objects, the_magic_pivot):
     new_render = new_state.get('render',{})
     lights_old = old_state.get('lights',[])
     lights_new = new_state.get('lights',[])
-    
+
     if new_state.get('show_fps',False):
         base.setFrameRateMeter(True)
     else:

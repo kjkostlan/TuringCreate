@@ -1,6 +1,7 @@
 # Outer level of the vanilla-pthon and pymesh application.
 # No functions are allowed to mutate the app state.
 import numpy as np
+import time
 import scipy
 import scipy.linalg
 import c
@@ -143,7 +144,32 @@ def mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size =
         meshes['corner_sphere'+str(i)] = sphere_mesh
     return meshes
 
+def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines, packs):
+    if app_state['frames_left'] <= 0: # Move on to next task.
+        app_state = app_state.copy()
+        app_state['current_task'] = (app_state['current_task']+1)%len(packs)
+        app_state['frames_left'] = int(packs[app_state['current_task']][2]*app_state['slowdown'])
+        if app_state['current_task']==0:
+            app_state['slowdown'] = app_state['slowdown']+1.0
+        if app_state['slowdown']>4:
+            app_state['slowdown'] = 4
+    current_task = app_state['current_task']
+    app_state = packs[app_state['current_task']][1](app_state)
+    app_state['frames_left'] = app_state['frames_left']-1
+    txt_lines = txt_lines.copy()
+    for i in range(len(packs)):
+        line = packs[i][0]
+        if 'Create object' in line:
+            line = line+'('+str(len(app_state['render']['children'].keys()))+' obs+texts)'
+        if i==app_state['current_task']:
+            line = line+'<<<'
+        txt_lines.append(line)
+    txt = '\n'.join(txt_lines)
+    app_state = c.assoc_in(app_state, ['onscreen_text','text'],txt)
+    return app_state
+
 ############################### Demos #################################
+
 def panda3d_render_sync_test():
     # Tests whether or not the update system works properly, i.e. creating moving and deleting objects in the scene.
     tweak_m44 = quat34.m44_from_q(quat34.q_from_polarshift([0,0,1],[0.05,0,1]))
@@ -251,49 +277,148 @@ def panda3d_render_sync_test():
     packs.append(['Create text',create_text_tweak, 45])
     packs.append(['Move text',lambda app_state:move_obj_tweak(app_state,move_these='text'), 60])
     packs.append(['Create light',create_light_tweak, 15])
-    #packs.append(['move light',lambda app_state:move_obj_tweak(app_state,move_these='light'), 60])
+    packs.append(['Move light',lambda app_state:move_obj_tweak(app_state,move_these='light'), 120])
     packs.append(['Move camera',move_camera_tweak, 60])
-    packs.append(['Tweak mesh verts',tweak_meshes, 60])
+    packs.append(['Tweak mesh verts',tweak_meshes, 20])
     packs.append(['Delete light',lambda app_state:delete_obj_tweak(app_state,delete_these='light'), 50])
     packs.append(['Delete object',lambda app_state:delete_obj_tweak(app_state,delete_these='mesh'), 50])
     packs.append(['Delete text',lambda app_state:delete_obj_tweak(app_state,delete_these='text'), 50])
 
     q_cam0 = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44_0 = quat34.qvfcyaTOcam44(q_cam0,v=[-16,0,0],f=2.0)
-    q_,v_,f_,c_,y_,a_ = quat34.cam44TOqvfcya(cam44_0)
     init_state = {'camera':{'mat44':cam44_0}, 'show_fps':True,
                   'current_task':0,'frames_left':packs[0][2], 'slowdown':1,
                   'onscreen_text':{'text':'This starting text should only last one frame','xy':[-1.25,0.9],'align':'left'}}
 
-    def _everyFrame_fn(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
-        if app_state['frames_left'] <= 0: # Move on to next task.
-            app_state = app_state.copy()
-            app_state['current_task'] = (app_state['current_task']+1)%len(packs)
-            app_state['frames_left'] = int(packs[app_state['current_task']][2]*app_state['slowdown'])
-            if app_state['current_task']==0:
-                app_state['slowdown'] = app_state['slowdown']+1.0
-            if app_state['slowdown']>4:
-                app_state['slowdown'] = 4
-        current_task = app_state['current_task']
-        app_state = packs[app_state['current_task']][1](app_state)
-        app_state['frames_left'] = app_state['frames_left']-1
-        txt_lines = ['This demo tests if Panda3D keeps up with "changes" to app_state.']
-        txt_lines.append("SceneSync looks for changes using python's 'is'\nand will not detect inplace modification:")
-        txt_lines.append("To make a change, don't mutate the app_state.\nInstead copy-on-modify while miminizing defensive copying using shallow copies when possible.")
-        for i in range(len(packs)):
-            line = packs[i][0]
-            if 'Create object' in line:
-                line = line+'('+str(len(app_state['render']['children'].keys()))+' obs+texts)'
-            if i==app_state['current_task']:
-                line = line+'<<<'
-            txt_lines.append(line)
-        txt = '\n'.join(txt_lines)
-        app_state = c.assoc_in(app_state, ['onscreen_text','text'],txt)
-        return app_state
+    txt_lines = ['This demo tests if Panda3D keeps up with "changes" to app_state.']
+    txt_lines.append("SceneSync looks for changes using python's 'is'\nand will not detect inplace modification:")
+    txt_lines.append("To make a change, don't mutate the app_state.\nInstead copy-on-modify while miminizing defensive copying using shallow copies when possible.")
 
-    pre_run_frames = 32
+    def _everyFrame_fn(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+        return sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines=txt_lines, packs=packs)
+
+    pre_run_frames = 0
     for i in range(pre_run_frames):
         init_state = _everyFrame_fn(init_state, None, None, None, None, None)
+
+    x = panda3dsetup.App(init_state, _everyFrame_fn)
+
+def tree_test():
+    # Tests the ability to manipulate scenes with parent-child relationships.
+    def make_mesh():
+        cube = primitives.cube()
+        base_color = np.random.random(3)
+        scatter = np.random.random()**2.5
+        cube['colors'] = np.ones([4,cube['verts'].shape[1]])
+        for o in range(3):
+            cube['colors'][o,:] = base_color[o]
+        cube['colors'][0:3,:] = cube['colors'][0:3,:]+scatter*np.random.randn(3, cube['verts'].shape[1])
+        cube['colors'] = np.maximum(0.0, np.minimum(1.0, cube['colors']))
+        return cube
+    def make_object():
+        scale_factor = 0.5+0.25*np.random.randn()
+        v = 1.0*np.random.randn(3); q = np.random.randn(4); q = q/np.linalg.norm(q)
+        m44 = quat34.qrvTOm44(q,scale_factor*np.identity(3), v)
+        return {'mat44':m44,'mesh':make_mesh()}
+
+    def select_random_path(sub_tree, path0=None):
+        # Random path to an object in the tree.
+        if path0 is not None:
+            path = path0
+        else:
+            path = []
+        stop_chance = 0.333
+        if np.random.random()<=stop_chance or 'children' not in sub_tree:
+            return path
+        if sub_tree['children'] is None:
+            raise Exception('Subtree children set to none, likely bug in this demo.')
+        kys = list(sub_tree['children'].keys())
+        if len(kys) == 0:
+            return path
+        k = kys[np.random.randint(len(kys))]
+        return select_random_path(sub_tree['children'][k], path+['children', k])
+
+    def derive_m44(m44, move=True, rot=True, scale=True):
+        #Randomally changes a matrix 44.
+        target_scale = 0.5; scale_drift = 0.25; scale_random = 0.1
+        target_r = 1.75; r_drift = 0.1; v_random = 0.1; rot_random = 0.1;
+        q,rm,v = quat34.m44TOqrv(m44); scale = rm[0,0]
+        if scale:
+            scale = scale+scale_random*np.random.randn()-scale_drift*(scale-target_scale)
+        if rot:
+            q = q+rot_random*np.random.randn(); q = q/np.linalg.norm(q)
+        if move:
+            r = np.linalg.norm(v)
+            v = np.random.randn()*v_random+v*(1.0-r_drift*(r-target_r))
+        return quat34.qrvTOm44(q,scale*np.identity(3), v)
+
+    def move_branch_tweak(app_state, move=True, rot=True, scale=True, substeps=16):
+        # Moves a random branch randomally, but biasing the random walk to keep things from drifting too far.
+        app_state = app_state.copy()
+        substeps_left = app_state.get('move_substeps',0)
+        if substeps_left == 0: # Every time substeps runs out, choose a new path and xform.
+            app_state['mat44_path'] = ['render']+select_random_path(app_state['render'])+['mat44']
+            app_state['mat44_begin'] = np.copy(c.get_in(app_state, app_state['mat44_path']))
+            app_state['mat44_end'] = derive_m44(app_state['mat44_begin'],move=move, rot=rot, scale=scale)
+            app_state['move_substeps'] = substeps - 1
+            #time.sleep(1.0)
+            #print('Changing path')
+        else:
+            app_state['move_substeps'] = app_state['move_substeps']-1
+            weight1 = 1.0-app_state['move_substeps']/(substeps-1+1e-100)
+            mat44 = app_state['mat44_begin']*(1.0-weight1) + app_state['mat44_end']*weight1
+            #import copy; app_state = copy.deepcopy(app_state) # DEBUG:
+            #app_state['render'] = app_state['render'].copy() #DEBUG
+            #app_state['render']['children'] = app_state['render']['children'].copy() #DEBUG
+            #print('m44 diff norm:', np.sum(np.abs(mat44-c.get_in(app_state, app_state['mat44_path']))))
+            return c.assoc_in(app_state, app_state['mat44_path'], mat44)
+        return app_state
+
+    def reparent_branch_tweak(app_state):
+        # Randomally reparent a branch.
+        tree = app_state['render']
+        n_try = 0
+        while True:
+            branch_path = select_random_path(tree) #Paths to objects, so will end in ['children', some_key]
+            destination_path = select_random_path(tree)+['children',str(np.random.random())]
+            if '/'.join(branch_path) in '/'.join(destination_path):
+                n_try = n_try+1
+                if n_try>512:
+                    raise Exception('Probable infinite loop here (bug in the testing code).')
+                continue # The destination cannot be inside the branch.
+            branch = c.get_in(tree, branch_path)
+            tree1 = c.update_in(tree, branch_path[0:-1], lambda one_above_branch:c.dissoc(one_above_branch, branch_path[-1]))
+            tree2 = c.assoc_in(tree1, destination_path, branch)
+            break
+        time.sleep(0.25)
+        return c.assoc_in(app_state,['render'], tree2)
+
+    packs = []
+    packs.append(['Move branch',lambda app_state:move_branch_tweak(app_state,move=True, rot=False, scale=False), 128])
+    packs.append(['Rotate branch',lambda app_state:move_branch_tweak(app_state,move=False, rot=True, scale=False), 128])
+    packs.append(['Scale branch',lambda app_state:move_branch_tweak(app_state,move=False, rot=False, scale=True), 128])
+    packs.append(['Change hierarchy (fps cap to 4)',reparent_branch_tweak, 8])
+
+    q_cam0 = quat34.q_from_polarshift([0,0,-1],[1,0,0])
+    cam44_0 = quat34.qvfcyaTOcam44(q_cam0,v=[-6,0,0],f=2.0)
+    init_state = {'camera':{'mat44':cam44_0}, 'show_fps':True,
+                  'current_task':0,'frames_left':packs[0][2], 'slowdown':1,
+                  'onscreen_text':{'text':'This starting text should only last one frame','xy':[-1.25,0.9],'align':'left'}}
+    init_objs = {}
+    for _ in range(12):
+        init_objs[str(np.random.random())] = make_object()
+    init_state['render'] = {'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}
+    init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[1024,512,256,1]},
+                            {'pos':[0.0, 32.0, 0.0],'color':[256,768,256,1]},
+                            {'pos':[0.0, 0.0, 32.0],'color':[256,512,1024,1]}]
+
+    txt_lines = ['This demo tests updating a hierarchy.']
+    txt_lines.append('Updates include moving branches around as well as changing the tree structure.')
+    txt_lines.append('When a branch is moved, all branches below it should move accordingly.')
+    txt_lines.append('It can be hard to tell what branches belong to what; the tree starts with 1 level only.')
+
+    def _everyFrame_fn(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+        return sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines=txt_lines, packs=packs)
 
     x = panda3dsetup.App(init_state, _everyFrame_fn)
 
