@@ -13,7 +13,7 @@ def simple_init_state(colored_lights=True): # Start simple.
     q = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44 = quat34.qvfcyaTOcam44(q,[-5,0,0],f=2.0)
     the_mesh = {'mesh':makeRandomMesh(),'mat44':np.identity(4), 'children':{}}
-    mat44_static  = np.identity(4)
+    mat44_static = np.identity(4)
     mat44_static[3,0:3] = [1,1,1]
     the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_static, 'children':{}}
     render = {'mat44':np.identity(4),
@@ -408,9 +408,9 @@ def tree_test():
     for _ in range(12):
         init_objs[str(np.random.random())] = make_object()
     init_state['render'] = {'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}
-    init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[1024,512,256,1]},
-                            {'pos':[0.0, 32.0, 0.0],'color':[256,768,256,1]},
-                            {'pos':[0.0, 0.0, 32.0],'color':[256,512,1024,1]}]
+    init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[2048,1024,512,1]},
+                            {'pos':[0.0, 32.0, 0.0],'color':[512,768*2,512,1]},
+                            {'pos':[0.0, 0.0, 32.0],'color':[515,512,2048,1]}]
 
     txt_lines = ['This demo tests updating a hierarchy.']
     txt_lines.append('Updates include moving branches around as well as changing the tree structure.')

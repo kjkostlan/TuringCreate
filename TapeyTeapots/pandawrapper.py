@@ -5,6 +5,7 @@ import time
 from panda3d.core import *
 from direct.showbase.ShowBase import ShowBase
 from direct.interval.IntervalGlobal import *
+from direct.filter.CommonFilters import CommonFilters
 
 import time
 from TapeyTeapots.yuckymutate import scenesync, mousekey
@@ -41,6 +42,10 @@ class App:
         self.screen_state = [800,600]
         mousekey.set_up_mouse(showbase, self.mouse_state, self.mouse_clicks)
         mousekey.set_up_keys(showbase, self.key_state, self.key_clicks)
+
+        #https://docs.panda3d.org/1.10/python/programming/render-to-texture/common-image-filters
+        filters = CommonFilters(base.win, base.cam)
+        filters.setSrgbEncode()
 
         # https://discourse.panda3d.org/t/userexit-without-kill-the-python-interpreter/10683
         try:
