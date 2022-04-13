@@ -85,13 +85,16 @@ def broken_record(delay_seconds = 1.0, empty_lines = 6):
             break
         time.sleep(delay_seconds)
 
-def list_demos(m_string=None):
+def list_demos(m_string=None, strip_module_name=True):
     # Map from fname to fn.
     if m_string is not None:
         f_name2obj = _module_to_method_objs(m_string)
     else:
         demo_fnss = [_module_to_method_objs(m_string) for m_string in module_list_demos]
         f_name2obj = _mergedicts(demo_fnss)
+    if strip_module_name:
+        fnames_strip = [fnm.split('.')[-1] for fnm in f_name2obj.keys()]
+        f_name2obj = dict(zip(fnames_strip, f_name2obj.values()))
     int2fname = dict(zip(range(len(f_name2obj)),f_name2obj.keys()))
     return int2fname, f_name2obj
 

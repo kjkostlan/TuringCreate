@@ -7,16 +7,23 @@ def _k_or_v2k(x, k_or_v):
     # Returns the k that matches key or value.
     if k_or_v in x:
         return k_or_v
-    else:
+    elif type(k_or_v) is str:
         for k in x.keys():
             if k_or_v.lower() in x[k].lower():
                 return k
+    else:
+        return False
 
 def _to_int(x):
     try:
         return int(x)
     except:
         return str(x)
+
+def _nonfalse(x): # There is probably an easier way.
+    if (x != False and x is not None) or (type(x) is int):
+        return True
+    return False
 
 if __name__ == "__main__":
     print('Turing create launched...')
@@ -43,19 +50,18 @@ if __name__ == "__main__":
                     print('Demo modules:\n')
                     print(module_dict)
                 elif len(pieces) == 2: # Module specified, list fns within module.
-                    k = _k_or_v2k(module_dict, _to_int(pieces[1]))
-                    print('Stuff:', pieces[1],k)
-                    if k is not False and k is not None:
-                        fname2int, fn_name2obj = tests.list_demos(module_dict[k])
-                        print('Demos within module: '+module_dict[k]+'\n',fname2int)
+                    k1 = _k_or_v2k(module_dict, _to_int(pieces[1]))
+                    if _nonfalse(k1):
+                        fname2int, fn_name2obj = tests.list_demos(module_dict[k1])
+                        print('Demos within module: '+module_dict[k1]+'\n',fname2int)
                     else:
                         print('Unrecognized module or out-of-bounds int ix:',pieces[1])
                 elif len(pieces) == 3: # Run the function.
                     k = _k_or_v2k(module_dict, _to_int(pieces[1]))
-                    if k is not False and k is not None:
+                    if _nonfalse(k):
                         fname2int, fn_name2obj = tests.list_demos(module_dict[k])
                         k1 = _k_or_v2k(fname2int, _to_int(pieces[2]))
-                        if k1 is not False and k1 is not None:
+                        if _nonfalse(k1):
                             f_obj = fn_name2obj[fname2int[k1]]
                             f_obj()
                         else:
