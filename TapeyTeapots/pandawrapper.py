@@ -37,11 +37,11 @@ class App:
 
         self.mouse_state = {}
         self.key_state = {}
-        self.mouse_clicks = {}
-        self.key_clicks = {}
+        self.is_mouse_clicks = {}
+        self.is_key_clicks = {}
         self.screen_state = [800,600]
-        mousekey.set_up_mouse(showbase, self.mouse_state, self.mouse_clicks)
-        mousekey.set_up_keys(showbase, self.key_state, self.key_clicks)
+        mousekey.set_up_mouse(showbase, self.mouse_state, self.is_mouse_clicks)
+        mousekey.set_up_keys(showbase, self.key_state, self.is_key_clicks)
 
         #https://docs.panda3d.org/1.10/python/programming/render-to-texture/common-image-filters
         filters = CommonFilters(base.win, base.cam)
@@ -60,7 +60,8 @@ class App:
         mousekey.update_mouse_pos(self.mouse_state, self.screen_state)
 
         try:
-            appstate1 = self.every_frame_fn(self.appstate, self.mouse_state, self.key_state, self.mouse_clicks, self.key_clicks, self.screen_state)
+            mouse_clicks, key_clicks = mousekey.convert_mouse_and_key(self.is_mouse_clicks, self.is_key_clicks)
+            appstate1 = self.every_frame_fn(self.appstate, self.mouse_state, self.key_state, mouse_clicks, key_clicks, self.screen_state)
         except Exception:
             print('Every Frame Error:')
             print(traceback.format_exc())
@@ -73,10 +74,10 @@ class App:
 
         if appstate1 is not None:
             self.appstate = appstate1
-        for k in self.mouse_clicks.keys():
-            self.mouse_clicks[k] = False
-        for k in self.key_clicks.keys():
-            self.key_clicks[k] = False
+        for k in self.is_mouse_clicks.keys():
+            self.is_mouse_clicks[k] = False
+        for k in self.is_key_clicks.keys():
+            self.is_key_clicks[k] = False
 
         # Sync the app state:
         oldstate = self.old_appstate

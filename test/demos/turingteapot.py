@@ -90,24 +90,6 @@ def everyFrame_default(app_state, mouse_state, key_state, mouse_clicks, key_clic
     app_state['nframe'] = app_state.get('nframe',0)+1
     return app_state
 
-def everyFrame_simple_demo(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
-    app_state = everyFrame_default(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
-    app_state['onscreen_text'] = {'text':'TEXTY','xy':[-0.9,0.9]}
-    print_inputs(mouse_state, key_state, mouse_clicks, key_clicks)
-    if np.mod(app_state['nframe'],85)==0:
-        app_state = c.assoc_in(app_state, ['render', 'children', 'the_mesh', 'mesh'], makeRandomMesh())
-        text = {'text':make_random_text()}
-        text['mat44'] = quat34.m44_from_q(np.asarray([0.707,0,0,-0.707]))
-        text['text']['color'] = [1,1,1,1]
-        text['text']['slant'] = 0.3
-        #text['text']['text'] = "Every day in \1slant\1every way\2 I'm \1red\1getting \1roman\1better \1slant\1and\2 better.\2\2"
-        text['mat44'][0:3,0:3] = 0.125*text['mat44'][0:3,0:3]
-        #text['mat44'][0:3,0:3] = text['mat44'][0:3,0:3]*8
-        #print('random text mat44:', out['mat44'])
-        app_state = c.assoc_in(app_state, ['render', 'children', 'some_text'], text)
-        #app_state = c.assoc_in(app_state,['render', 'children'], make_cube_grid())
-    return app_state
-
 def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z = 1, radius = 0.05):
     # Put these into ['render', 'children'] of the world.
     cube_mesh = primitives.cube(); cube_mesh['verts'] = cube_mesh['verts']*radius
@@ -170,7 +152,37 @@ def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, 
 
 ############################### Demos #################################
 
-def panda3d_render_sync_test():
+def ui_demo():
+    # Tests the panda3D input.
+    txt_lines = ['This demo reports key and mouse inputs as text onscreen. There is no 3D scene.']
+    txt_lines.append('It should report all three mouse buttons, and mouse move/drag.')
+    txt_lines.append('It should also report both normal and special keys.')
+    txt_lines.append('Finally, it should respond to resizing the screen.')
+
+    def every_frame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+        txt_lines1 = txt_lines.copy()
+        keys_pressed = []
+        for k,v in key_state.items():
+            if v:
+                keys_pressed.append(k)
+        txt_lines1.append('Keys pressed: '+' '.join(keys_pressed))
+        mouse_pressed = []
+        for i in range(16):
+            if i in mouse_state and mouse_state[i]:
+                mouse_pressed.append(str(i))
+        txt_lines1.append('Mouse buttons pressed: '+' '.join(mouse_pressed))
+        txt_lines1.append('Screen state: '+str(screen_state))
+        if len(mouse_clicks)>0:
+            txt_lines1.append('Mouse just clicked (set):'+str(mouse_clicks))
+        if len(key_clicks)>0:
+            txt_lines1.append('Key just clicked (set):'+str(key_clicks))
+        txt = '\n'.join(txt_lines1)
+        return c.assoc_in(app_state, ['onscreen_text','text'],txt)
+    scene0 = {'camera':{'mat44':np.identity(4)}}
+    txt = {'xy':[-1.25,0.9],'align':'left','text':'This text should only last one frame'}
+    x = panda3dsetup.App(c.assoc_in(scene0, ['onscreen_text'],txt), every_frame)
+
+def render_sync_demo():
     # Tests whether or not the update system works properly, i.e. creating moving and deleting objects in the scene.
     tweak_m44 = quat34.m44_from_q(quat34.q_from_polarshift([0,0,1],[0.05,0,1]))
 
@@ -261,14 +273,9 @@ def panda3d_render_sync_test():
     def move_camera_tweak(app_state):
         q,v,f,_,_,_ = quat34.cam44TOqvfcya(app_state['camera']['mat44'])
         tweak_4q,tweak_r,tweak_v = quat34.m44TOqrv(tweak_m44)
-        #print('tweak_m44:\n', tweak_m44)
-        #print('Tweak m33 det:',np.linalg.det(tweak_m44[0:3,0:3]))
-        #print('Tweak q:', tweak_4q)
-        #print('Tweak r:\n', tweak_r)
         q1 = quat34.qq(tweak_4q, q)
         v1 = quat34.qv(tweak_4q, v)[:,0]
         new_m44 = quat34.qvfcyaTOcam44(q1,v1,f=f)
-        #return app_state
         return c.assoc_in(app_state,['camera','mat44'],new_m44)
 
     packs = []
@@ -303,7 +310,7 @@ def panda3d_render_sync_test():
 
     x = panda3dsetup.App(init_state, _everyFrame_fn)
 
-def tree_test():
+def tree_demo():
     # Tests the ability to manipulate scenes with parent-child relationships.
     def make_mesh():
         cube = primitives.cube()
@@ -422,7 +429,7 @@ def tree_test():
 
     x = panda3dsetup.App(init_state, _everyFrame_fn)
 
-def panda3d_camerademo():
+def camera_demo():
     # Is the camera working properly?
     #q = quat34.camq_from_look([-5, 2, -4]) # rotation of camera (3 DOF)
     #v = [5,-3,10] # location of center of camera (3 DOF)
@@ -457,11 +464,6 @@ def panda3d_camerademo():
             corners = mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size = 0.1)
             for ck in corners.keys():
                 objs[ck] = corners[ck]
-            for k in list(objs.keys()): # Test moving objects around.
-                pass
-                #objs[k] = c.assoc(objs[k],'mat44', np.random.random([4,4]))
-                #if np.random.random()<0.01:
-                #    del objs[k]
             app_state = c.assoc_in(app_state,['render','children'],objs)
             return app_state
         else:

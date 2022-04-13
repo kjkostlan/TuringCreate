@@ -1,7 +1,23 @@
 # Mouse and keyboard events to interact with. Based on polling and counts.
 from panda3d.core import *
 
+def convert_mouse_and_key(is_mouse_clicks, is_key_clicks):
+    mouse_clicks = set()
+    for k,v in is_mouse_clicks.items():
+        if v:
+            mouse_clicks.add(k)
+    key_clicks = set()
+    for k,v in is_key_clicks.items():
+        if v:
+            key_clicks.add(k)
+    return mouse_clicks, key_clicks
+
 def set_up_keys(showbase, key_state, key_clicks):
+    # Treat modifier keys just like normal keys, not combining them:
+    #https://docs.panda3d.org/1.10/python/programming/hardware-support/keyboard-support
+    base.mouseWatcherNode.set_modifier_buttons(ModifierButtons())
+    base.buttonThrowers[0].node().set_modifier_buttons(ModifierButtons())
+
     def update_key_map(controlName, controlState):
         key_state[controlName] = controlState
         if controlState:
@@ -30,10 +46,10 @@ def set_up_mouse(showbase, mouse_state, mouse_clicks):
         if controlState:
             mouse_clicks[controlName] = True
     for i in range(5):
-        mouse_clicks[str(i)] = False
-        mouse_state[str(i)] = False
-        showbase.accept('mouse'+str(i),update_mouse_map, [str(i), True])
-        showbase.accept('mouse'+str(i)+"-up",update_mouse_map, [str(i), False])
+        mouse_clicks[i] = False
+        mouse_state[i] = False
+        showbase.accept('mouse'+str(i),update_mouse_map, [i, True])
+        showbase.accept('mouse'+str(i)+"-up",update_mouse_map, [i, False])
     for pk in ['x_old','x','y_old','y']:
         mouse_state[pk] = 0.0
 
