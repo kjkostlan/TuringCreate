@@ -293,6 +293,8 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
             elif align=='right':
                 text_ob0.setAlign(TextNode.ARight)
             text_ob = NodePath(text_ob0)
+            if not new_text.get('one_sided',False):
+                text_ob.setTwoSided(True)
             #text_ob.setLightOff() # Option to display the color as-is.
             text_ob.reparent_to(pivot)
             panda_objects_branch['text'] = text_ob
@@ -317,7 +319,7 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
         elif change_xform and ch_new is not None:
             update_xforms(ch_new, mat44, panda_branch1)
 
-def sync_camera(cam44_old, cam44, cam_obj):
+def sync_camera(cam44_old, cam44, cam_obj, screen_state, stretch=False):
     # Camera math: Our camera xform is remove_w(norm_w(cam44*add_w(x)))
     # add_w adds w=1 to a 3 vector. norm_w divides by the w term.
     # Note: this is different than the standard 4x4 matrix for 3d xforms.
@@ -328,14 +330,34 @@ def sync_camera(cam44_old, cam44, cam_obj):
     # cam44_panda*(cam_xform)^(-1) = cam44 => cam44_panda = cam44*cam_xform
     # So we have: cam_xform = (cam44^-1)*cam44_panda
 
-    # The default camera points in the +y direction, while our ident q points in the -z direction:
-    q = [np.sqrt(0.5),np.sqrt(0.5),0,0]
-    lens = base.camLens;
-    f = np.sqrt(2.0); lens.setFov(90.0); c = [0.01, 100]; lens.setNearFar(c[0], c[1])
-    cam44_panda = quat34.qvfcyaTOcam44(q, [0,0,0],f,c)
+    match_camera_more = True # Lighting has a bug when this is disabled.
 
-    # TODO: sign of matrix makes bug where everything can disappear.
+    # The default camera points in the +y direction, while our ident q points in the -z direction:
+    q = [np.sqrt(0.5),np.sqrt(0.5),0,0]; v = [0,0,0]
+    lens = base.camLens;
+    if match_camera_more:
+        q_unused,v_unused,f,cl,_,_ = quat34.cam44TOqvfcya(cam44)
+    else:
+        f = 1.0; cl = [0.01, 100]
+
+    w = screen_state[0]; h = screen_state[1]
+    theta = 2.0*np.arctan(1.0/f)*180.0/np.pi
+    if stretch:
+        lens.setFov(theta,theta);
+    else:
+        f1 = f*min(h,w)/max(h,w)
+        theta1 = theta1 = 2.0*np.arctan(1.0/f1)*180.0/np.pi
+        if w<=h:
+            lens.setFov(theta,theta1)
+        else:
+            lens.setFov(theta1,theta)
+
+    lens.setNearFar(cl[0], cl[1])
+    cam44_panda = quat34.qvfcyaTOcam44(q, v, f, cl)
+
     cam_xform = np.matmul(np.linalg.inv(cam44),cam44_panda)
+    if cam_xform[3,3]<0: # Sign fix.
+        cam_xform = -cam_xform
 
     cam_obj.set_transform(np2panda_44(cam_xform))
 
@@ -366,7 +388,7 @@ def sync_onscreen_text(panda_objects, old_state, new_state):
                 textObject.setAlign(TextNode.ARight)
             panda_objects['onscreen_text'] = textObject
 
-def sync(old_state, new_state, panda_objects, the_magic_pivot):
+def sync(old_state, new_state, screen_state, panda_objects, the_magic_pivot):
     old_render = old_state.get('render',{})
     new_render = new_state.get('render',{})
     lights_old = old_state.get('lights',[])
@@ -395,5 +417,5 @@ def sync(old_state, new_state, panda_objects, the_magic_pivot):
         old_camera = old_state['camera']['mat44']
     else:
         old_camera = None
-    sync_camera(old_camera, new_state['camera']['mat44'], panda_objects['cam'])
+    sync_camera(old_camera, new_state['camera']['mat44'], panda_objects['cam'], screen_state, stretch=new_state.get('stretch_to_screen',False))
     sync_onscreen_text(panda_objects, old_state, new_state)

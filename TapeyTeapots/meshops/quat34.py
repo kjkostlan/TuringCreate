@@ -276,7 +276,7 @@ def cam44TOqvfcya(cam44):
     # Converts a perspective camera to a unit Quaternion, Camera location, and f-number.
     # q = rotation of camera. Identity q means camera camera points in -z direction (3 DOF)
     # v = location of center of camera (3 DOF)
-    # f is kindof the f-number, frustem depth/width. A 90 degree FOV is an f of 1.414, telophotos are f>10. (1 DOF)
+    # f is kindof the f-number, frustum depth/half-width. A 90 degree FOV is an f of 1.0, telophotos are f>10. (1 DOF)
     # c is the [near, far] clipping plane. For very weird cameras far can be nearer. (2 DOF)
     # y = [y-stretch, y shear in x direction] of the camera image. Usually [1,0] (2 DOF)
     # a = Clipping plane shear slope (applied after y), + is away from camera [near-x, near-y, far-x, far-y]. Usually all zero. (4 DOF)

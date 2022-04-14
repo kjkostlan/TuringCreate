@@ -59,21 +59,21 @@ def set_up_mouse(showbase, mouse_state, mouse_clicks):
     for pk in ['x_old','x','y_old','y','scroll_old','scroll']:
         mouse_state[pk] = 0.0
 
-def update_mouse_pos(mouse_state, screen_state):
+def update_mouse_pos(mouse_state, screen_state, stretch_to_screen=False):
         mouseWatcher = base.mouseWatcherNode
         screenX = base.win.getProperties().getXSize()
         screenY = base.win.getProperties().getYSize()
         for k in ['x','y','scroll']:
             mouse_state[k+'_old'] = mouse_state[k]
         mouse_state['scroll'] = _tmp_scroll_store[0]
-
         if mouseWatcher.hasMouse():
             mousy = mouseWatcher.getMouse()
             xy = [mousy.getX(), mousy.getY()]
-            if screenY>screenX: # Cameras extend the FOV of the biggest dimension.
-                xy[1] = xy[1]*screenY/screenX
-            else:
-                xy[0] = xy[0]*screenX/screenY
+            if not stretch_to_screen:
+                if screenY>screenX: # Cameras extend the FOV of the biggest dimension.
+                    xy[1] = xy[1]*screenY/screenX
+                else:
+                    xy[0] = xy[0]*screenX/screenY
             mouse_pos = xy
             mouse_state['x'] = mouse_pos[0]
             mouse_state['y'] = mouse_pos[1]

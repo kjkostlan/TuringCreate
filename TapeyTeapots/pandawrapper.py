@@ -67,7 +67,7 @@ class App:
     def _every_frame(self, task):
 
         self.screen_state = [base.win.getProperties().getXSize(), base.win.getProperties().getYSize()]
-        mousekey.update_mouse_pos(self.mouse_state, self.screen_state)
+        mousekey.update_mouse_pos(self.mouse_state, self.screen_state, stretch_to_screen=self.appstate.get('stretch_to_screen',False))
 
         try:
             mouse_clicks, key_clicks = mousekey.convert_mouse_and_key(self.is_mouse_clicks, self.is_key_clicks)
@@ -93,7 +93,7 @@ class App:
         oldstate = self.old_appstate
         newstate = self.appstate
         try:
-            scenesync.sync(self.old_appstate, self.appstate, self.panda_stuff_that_mutates, self.pivot)
+            scenesync.sync(self.old_appstate, self.appstate, self.screen_state, self.panda_stuff_that_mutates, self.pivot)
         except Exception:
             print('Appstate synchronization error:')
             print(traceback.format_exc())

@@ -19,11 +19,14 @@ def simple_init_state(colored_lights=True): # Start simple.
     render = {'mat44':np.identity(4),
               'children': {'the_mesh':the_mesh, 'the_mesh_static':the_mesh_static}}
     if colored_lights:
-        lights = [{'pos':[4.0, -32.0, 0.0],'color':[2048,0,0,1]},
-                  {'pos':[0.0, -32.0, 4.0],'color':[0,2048,0,1]},
-                   {'pos':[0.0, -32.0, 0.0],'color':[0,0,2048,1]}]
+        lights = [{'pos':[4.0, -32.0, 0.0],'color':[1024,0,0,1]},
+                  {'pos':[0.0, -32.0, 4.0],'color':[0,1024,0,1]},
+                  {'pos':[0.0, -32.0, 0.0],'color':[0,0,1024,1]},
+                  {'pos':[4.0, 32.0, 0.0],'color':[512,0,0,1]},
+                  {'pos':[0.0, 32.0, 4.0],'color':[0,512,0,1]},
+                  {'pos':[0.0, 32.0, 0.0],'color':[0,0,512,1]}]
     else:
-        lights = [{'pos':[0,-32,0],'color':[2048,2048,2048,1]}]
+        lights = [{'pos':[0,-32,0],'color':[1024,1024,1024,1]}]
     return {'render':render,
             'lights':lights,
             'camera':{'mat44':cam44}}
@@ -109,23 +112,31 @@ def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z 
                 objs['cube_grid'+str(i)+'_'+str(j)+'_'+str(k)] = obj1
     return objs
 
-def mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size = 0.1):
+def mark_on_screen(cam44, pos_screen, names, relative_size = 0.0625):
+    # Marks a point on the screen.
+    meshes = {}
+    pos_world = quat34.cam44_invv(cam44, pos_screen)
+    two_corners = np.zeros([3,2]);
+    two_corners[:,0] = [-1,-1,pos_screen[2,0]]; two_corners[:,1] = [1,1,pos_screen[2,0]]
+    two_corners_world = quat34.cam44_invv(cam44, two_corners)
+    dist = 0.707*(np.linalg.norm(two_corners_world[:,0]-two_corners_world[:,1])) # How far apart sets how large we draw them.
+    for i in range(pos_world.shape[1]):
+        sphere_mesh = primitives.sphere(resolution=8)
+        sphere_mesh['verts'] = sphere_mesh['verts']*0.5*relative_size*dist
+        sphere_mesh['verts'] = sphere_mesh['verts'] + np.expand_dims(pos_world[:,i],axis=1)
+        meshes[names[i]] = sphere_mesh
+    return meshes
+
+def mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size = 0.08):
     # Makes 4 spherical meshes. Note: z=-1 is near, z=+1 is far clippin plane.
     # Making new meshes every frame is inefficient, so the resolution is kept low.
     four_corners = np.zeros([3,4])
     ed = 1.0-margin_from_edge
     four_corners[0,:] = [-ed,ed,-ed,ed]; four_corners[1,:] = [ed,ed,-ed,-ed] # Clockwise from top left.
     four_corners[2,:] = clip_z_value
-    fc_world = quat34.cam44_invv(cam44, four_corners)
-    dist = 0.707*(np.linalg.norm(fc_world[:,0]-fc_world[:,2])) # How far apart sets how large we draw them.
-    meshes = {}
-    #print('Dist:',dist,'Corners:\n', fc_world)
-    for i in range(4):
-        sphere_mesh = primitives.sphere(resolution=8)
-        sphere_mesh['verts'] = sphere_mesh['verts']*0.5*relative_size*dist
-        sphere_mesh['verts'] = sphere_mesh['verts'] + np.expand_dims(fc_world[:,i],axis=1)
-        meshes['corner_sphere'+str(i)] = sphere_mesh
-    return meshes
+
+    names = ['corner_sphere'+str(i) for i in range(4)]
+    return mark_on_screen(cam44, four_corners, names, relative_size = relative_size)
 
 def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines, packs):
     if app_state['frames_left'] <= 0: # Move on to next task.
@@ -217,7 +228,7 @@ def render_sync_demo():
         return c.assoc_in(app_state,['render','children',rand_k], new_obj)
 
     def create_text_tweak(app_state):
-        text = {'text':'text'+str(np.random.randn()),'mat44':rand_place44(),'color':np.random.random(4)}
+        text = {'text':'text'+str(np.random.randn()),'color':np.random.random(4)}
         text['color'][3] = text['color'][3]**0.25
         text['mat44'][0:3,0:3] = text['mat44'][0:3,0:3]*3
         rand_k = str(np.random.random())
@@ -432,9 +443,9 @@ def tree_demo():
     for _ in range(12):
         init_objs[str(np.random.random())] = make_object()
     init_state['render'] = {'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}
-    init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[2048,1024,512,1]},
-                            {'pos':[0.0, 32.0, 0.0],'color':[512,768*2,512,1]},
-                            {'pos':[0.0, 0.0, 32.0],'color':[515,512,2048,1]}]
+    init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[1024,512,256,1]},
+                            {'pos':[0.0, 32.0, 0.0],'color':[512,768,512,1]},
+                            {'pos':[0.0, 0.0, 32.0],'color':[256,256,1024,1]}]
 
     txt_lines = ['This demo tests updating a hierarchy.']
     txt_lines.append('Updates include moving branches around as well as changing the tree structure.')
@@ -448,20 +459,23 @@ def tree_demo():
 
 def camera_demo():
     # Is the camera working properly?
-    #q = quat34.camq_from_look([-5, 2, -4]) # rotation of camera (3 DOF)
-    #v = [5,-3,10] # location of center of camera (3 DOF)
-    #f = 3.5 # f # kindof the f-number. A 90 degree FOV is an f of 1.0 and telophotos would be f>10. (1 DOF)
-    #cl = [0.002, 1000] # the [near, far] clipping plane. For very weird cameras far can be nearer. (2 DOF)
-
     app_state = simple_init_state(); app_state['show_fps'] = True
-    #all_meshes = {**make_cube_grid(),**corners}
     app_state = c.assoc_in(app_state,['render', 'children'], make_cube_grid())
 
     def sc_format(x): #Scalar format
-        if x<=0 and x>-1e-10: # Annoying sign z-fighting, the <= IS needed
+        if x<=0 and x>-1e-10: # Annoying sign z-fighting, the = in <= IS needed
             return '0.0000'
         out = np.format_float_positional(x, unique=False, precision=4)
         return out
+
+    txt_colors = np.ones([3,4]); txt_colors[0:3,0:3] = 500*np.identity(3)
+    txt_txt = ['x=4', 'y=4', 'z=4']
+    txt_locations = [[4,0,0],[0,4,0],[0,0,4]]
+    for i in range(3):
+        txt_m44 = quat34.m33vTOm44(np.identity(3),txt_locations[i])
+        txt_dict = {'text':txt_txt[i],'color':txt_colors[i,:]}
+        ob = {'text':txt_dict, 'mat44':txt_m44}
+        app_state = c.assoc_in(app_state,['render', 'children','text '+txt_txt[i]], ob)
 
     def every_frame_func(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
         app_state = app_state.copy()
@@ -474,12 +488,19 @@ def camera_demo():
             app_state = nav3D.empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
         cam44 = app_state['camera']['mat44']
         objs = app_state['render']['children'].copy()
-        corners = mark_corners(cam44, clip_z_value=0.995, margin_from_edge=0.05, relative_size = 0.1)
+        corners = mark_corners(cam44, clip_z_value=63.0/64.0, margin_from_edge=0.05, relative_size = 0.1)
+        cursor_screen = np.zeros([3,1]); cursor_screen[:,0] = [mouse_state['x'],mouse_state['y'],63.0/64.0]
+        one_mesh_dict = mark_on_screen(cam44, cursor_screen, ['screen_mesh'], relative_size = 1.0/32.0)
+        objs['screen_mesh'] = {'mesh':one_mesh_dict['screen_mesh']}
+        stretch = app_state.get('stretch_to_screen',False)
+        if 's' in key_clicks:
+            stretch = not stretch
+            app_state['stretch_to_screen'] = stretch
         for ck in corners.keys():
             objs[ck] = {'mesh':corners[ck]}
         app_state = c.assoc_in(app_state,['render','children'],objs)
         lines = ['Move the camera like Blender! The camera itself is a 4x4 matrix.']
-        lines.append('The 4 "corner" spheres should stay in a fixed square pattern on the screen.')
+        lines.append('The 4 "corner" spheres should stay fixed when the camera moves, and one sphere follows mouse.')
         if ';' in key_clicks:
             app_state['show_controls'] = not app_state.get('show_controls', False)
         if app_state.get('show_controls', False):
@@ -489,6 +510,7 @@ def camera_demo():
             lines = lines + ['Escape to reset view']
         else:
             lines.append('; to toggle controls (all 15 DOFs can be modified)')
+        lines.append('Screen size:'+ str(screen_state)+ ' (stretch to screen='+str(stretch)+' , toggle with s)')
         lines.append('The camera parameters are shown below:')
         q,v,f,c_,y,a = quat34.cam44TOqvfcya(cam44)
         p_new = [q,v,f,c_,y,a]; letters = ['q','v','f','cl','y','a']
@@ -523,10 +545,4 @@ def camera_demo():
         app_state = c.assoc_in(app_state, ['onscreen_text'],txt)
         return app_state
 
-
-    #print('Cam44 default:',app_state['camera'])
-    #q0,v0,f0,c0,y0,a0 = quat34.cam44TOqvfcya(app_state['camera']['mat44'])
-    #print('App state camera: q:', q0, 'v:', v0, 'f:', f0, 'c:', c0, 'y:', y0, 'a:', a0)
-    #app_state['camera'] = {'mat44':cam44}
-    # Turn off culling.
     x = panda3dsetup.App(app_state, every_frame_func, panda_config={'view-frustum-cull':0})
