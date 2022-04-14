@@ -230,7 +230,6 @@ def render_sync_demo():
     def create_text_tweak(app_state):
         text = {'text':'text'+str(np.random.randn()),'color':np.random.random(4)}
         text['color'][3] = text['color'][3]**0.25
-        text['mat44'][0:3,0:3] = text['mat44'][0:3,0:3]*3
         rand_k = str(np.random.random())
         new_text = {'text':text,'mat44':rand_place44()}
         return c.assoc_in(app_state,['render','children',rand_k], new_text)
