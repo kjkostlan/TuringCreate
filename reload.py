@@ -36,11 +36,12 @@ def reload_user_py_modules(print_reload=True, throw_errors=True):
             new_contents=myfile.read()
         if old_contents != new_contents:
             # https://stackoverflow.com/questions/437589/how-do-i-unload-reload-a-python-module
-            if print_reload:
+            if print_reload and old_contents is not None:
                 print('reloading:',f)
             m = file2module(f, throw_errors=throw_errors)
             if m is not None:
-                importlib.reload(m)
+                if old_contents is not None:
+                    importlib.reload(m)
                 file2contents[f] = new_contents
 
 def reload_user_py_catcherr(print_reload=True): # Catches and prints errors, does not throw errors.
