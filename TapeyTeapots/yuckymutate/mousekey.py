@@ -1,6 +1,8 @@
 # Mouse and keyboard events to interact with. Based on polling and counts.
 from panda3d.core import *
 
+_tmp_scroll_store = [0] # Race condition between update_mouse_pos and the callbacks.
+
 def convert_mouse_and_key(is_mouse_clicks, is_key_clicks):
     mouse_clicks = set()
     for k,v in is_mouse_clicks.items():
@@ -45,20 +47,25 @@ def set_up_mouse(showbase, mouse_state, mouse_clicks):
         mouse_state[controlName] = controlState
         if controlState:
             mouse_clicks[controlName] = True
+    def update_scroll(delta):
+        _tmp_scroll_store[0] = _tmp_scroll_store[0]+delta
     for i in range(5):
         mouse_clicks[i] = False
         mouse_state[i] = False
         showbase.accept('mouse'+str(i),update_mouse_map, [i, True])
         showbase.accept('mouse'+str(i)+"-up",update_mouse_map, [i, False])
-    for pk in ['x_old','x','y_old','y']:
+    showbase.accept('wheel_up',update_scroll, [1])
+    showbase.accept('wheel_down',update_scroll, [-1])
+    for pk in ['x_old','x','y_old','y','scroll_old','scroll']:
         mouse_state[pk] = 0.0
 
 def update_mouse_pos(mouse_state, screen_state):
         mouseWatcher = base.mouseWatcherNode
         screenX = base.win.getProperties().getXSize()
         screenY = base.win.getProperties().getYSize()
-        mouse_state['x_old'] = mouse_state['x']
-        mouse_state['y_old'] = mouse_state['y']
+        for k in ['x','y','scroll']:
+            mouse_state[k+'_old'] = mouse_state[k]
+        mouse_state['scroll'] = _tmp_scroll_store[0]
 
         if mouseWatcher.hasMouse():
             mousy = mouseWatcher.getMouse()

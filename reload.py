@@ -30,8 +30,6 @@ def file2module(filename, throw_errors=True):
 def reload_user_py_modules(print_reload=True, throw_errors=True):
     py_files = set(list_py_files())
 
-    #if print_reload:
-    #    print('big reload step')
     for f in py_files:
         old_contents = file2contents.get(f,None)
         with open (f, "r") as myfile:

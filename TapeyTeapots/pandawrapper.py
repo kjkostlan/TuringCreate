@@ -6,6 +6,7 @@ from panda3d.core import *
 from direct.showbase.ShowBase import ShowBase
 from direct.interval.IntervalGlobal import *
 from direct.filter.CommonFilters import CommonFilters
+from panda3d.core import ConfigVariableString
 
 import time
 from TapeyTeapots.yuckymutate import scenesync, mousekey
@@ -14,7 +15,7 @@ import numpy as np
 
 class App:
 
-    def __init__(self, initial_state, every_frame_fn):
+    def __init__(self, initial_state, every_frame_fn, panda_config=None):
 
         self.appstate = initial_state
         self.every_frame_fn = every_frame_fn
@@ -46,6 +47,15 @@ class App:
         #https://docs.panda3d.org/1.10/python/programming/render-to-texture/common-image-filters
         filters = CommonFilters(base.win, base.cam)
         filters.setSrgbEncode()
+
+        #https://docs.panda3d.org/1.10/python/programming/configuration/accessing-config-vars-in-a-program
+        if panda_config is not None:
+            print('Custom panda config (warning: will last until app restart):', panda_config)
+            for k,v in panda_config.items():
+                var_ob = ConfigVariableString(k, 'NONE')
+                #print('Specified in config file: ', var_ob.getValue())
+                var_ob.setValue(str(v))
+                #print('Value we will use: ', var_ob.getValue())
 
         # https://discourse.panda3d.org/t/userexit-without-kill-the-python-interpreter/10683
         try:

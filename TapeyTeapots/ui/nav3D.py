@@ -19,7 +19,7 @@ def _constrain_3D(cam_3D):
         for o in range(len(v)):
             v[o] = limit_range(v[o],-65536,65536)
     cam_3D['camera_f'] = limit_range(cam_3D['camera_f'],-65536,65536)
-    cam_3D['view_rot_shear'][0] = limit_range(cam_3D['view_rot_shear'][0],-16,16)
+    cam_3D['view_rot_shear'][0] = cam_3D['view_rot_shear'][0]%(2.0*np.pi)
     for o in range(2):
         cam_3D['camera_clip'][o] = limit_range(cam_3D['camera_clip'][o],1.0/65536,65536)
     for o in range(2):
@@ -54,6 +54,22 @@ def nav_to_camera(opts_3D):
     v = opts_3D['camera_pos']; f = opts_3D['camera_f']; cl = opts_3D['camera_clip']
     return quat34.qvfcyaTOcam44(camq,v,f,c=cl,y=oddball[1],a=oddball[2])
 
+def _orbit_no_roll(opts_3D, delta_x, delta_y):
+    # Returns any roll it applies as it's second arg.
+    speed = -2.0 #Both + and - speed can work.
+    frame = get_cam_frame(opts_3D);
+    speed_multx = np.sqrt(frame[0,2]*frame[0,2]+frame[1,2]*frame[1,2]) # Don't spin too fast near the top and bottom.
+    if speed_multx<0.001:
+        speed_multx = 0 # Numerical stability?
+    new_aim = frame[:,2]+delta_x*speed*speed_multx*frame[:,0]+delta_y*speed*frame[:,1]
+    q = quat34.q_from_polarshift(frame[:,2], new_aim)
+    old_delta = opts_3D['camera_pos']-np.asarray(opts_3D['orbit_center'])
+    new_delta = quat34.qv(q,np.expand_dims(old_delta,1))[:,0]
+    opts_3D1 = c.assoc(opts_3D, 'camera_pos', new_delta+opts_3D['orbit_center'])
+    frame1 = get_cam_frame(opts_3D1)
+    flip = frame[0,2]*frame1[0,2] + frame[1,2]*frame1[1,2] < 0
+    return c.assoc(opts_3D, 'camera_pos', new_delta+opts_3D['orbit_center']), flip
+
 ########################## Camera controls ##################################
 
 def reset(_o,_dx,_dy):
@@ -61,12 +77,18 @@ def reset(_o,_dx,_dy):
 
 def orbit(opts_3D, delta_x, delta_y):
     # The most obvious one.
-    frame = get_cam_frame(opts_3D); speed = -1.0 #Both + and - speed can work.
-    new_aim = frame[:,2]+delta_x*speed*frame[:,0]+delta_y*speed*frame[:,1]
-    q = quat34.q_from_polarshift(frame[:,2], new_aim)
-    old_delta = opts_3D['camera_pos']-np.asarray(opts_3D['orbit_center'])
-    new_delta = quat34.qv(q,np.expand_dims(old_delta,1))[:,0]
-    return c.assoc(opts_3D, 'camera_pos', new_delta+opts_3D['orbit_center'])
+    theta = opts_3D['view_rot_shear'][0]
+    cr = np.cos(-theta); sr = np.sin(-theta)
+    opts_3D_unrolled = c.assoc_in(opts_3D, ['view_rot_shear',0], 0)
+    flip_sign = 1.0
+    if opts_3D.get('polar_flip',False):
+        flip_sign = -1.0
+    opts_3D_unrolled1, flip = _orbit_no_roll(opts_3D_unrolled, flip_sign*(delta_x*cr-delta_y*sr), delta_y*cr+delta_x*sr)
+
+    if flip:
+        opts_3D_unrolled1 = c.assoc(opts_3D_unrolled1,'polar_flip', not opts_3D.get('polar_flip',False))
+
+    return c.assoc_in(opts_3D_unrolled1, ['view_rot_shear',0], theta+flip*np.pi)
 
 def change_orbit_center(opts_3D, delta_x, delta_y):
     # The other most obvious one.
@@ -90,7 +112,7 @@ def zoom_or_fov(opts_3D, delta_x, delta_y):
     opts_3D['camera_f'] = opts_3D['camera_f']*np.exp(delta_x*speed)
     return opts_3D
 
-def rot_camera(opts_3D, delta_x, delta_y):
+def roll_camera(opts_3D, delta_x, delta_y):
     # Only delta x matters.
     old_rot = opts_3D['view_rot_shear'][0]; speed = 1.0
     opts_3D = c.assoc_in(opts_3D, ['view_rot_shear',0], old_rot+delta_x*speed)
@@ -129,27 +151,44 @@ def shear_far_clipplane(opts_3D, delta_x, delta_y):
 
 ############################## Combining fns ################################
 
-def apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay, drag_only=False):
+def apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay):
     # Applies one of the "mouse drag" functions. drag_only can specify a mouse button or be any button.
     delta_x = mouse_state['x']-mouse_state['x_old']
     delta_y = mouse_state['y']-mouse_state['y_old']
+    app_state = app_state.copy()
 
-    can_drag = True
-    if drag_only is not False and drag_only is not None:
-        TODO
-    if can_drag:
-        app_state = app_state.copy()
-        app_state['nav3D_cam'] = f_camstate_deltax_deltay(app_state['nav3D_cam'], delta_x, delta_y)
-        _constrain_3D(app_state['nav3D_cam'])
+    app_state['nav3D_cam'] = f_camstate_deltax_deltay(app_state['nav3D_cam'], delta_x, delta_y)
+    _constrain_3D(app_state['nav3D_cam'])
     app_state['camera'] = {'mat44':nav_to_camera(app_state['nav3D_cam'])}
     return app_state
 
-def blender_fmap():
-    # Maps blender's mouse and hotkey defaults to navigation fns.
-    # Middle drag: orbit.
-    # Shift+middle drag: pan (shift orbit center).
-    # Scroll wheel: Zoom (by moving camera).
-    TODO
+def blender_fn(mouse_state, key_state, include_oddballs=False):
+    # Maps blender's default navigation mouse and hotkeys to fns.
+    if mouse_state['scroll_old'] is not None and mouse_state['scroll'] is not None:
+        if mouse_state['scroll_old'] != mouse_state['scroll']: # Scroll wheel: Zoom (by moving camera).
+            key_state = key_state.copy()
+            def fixed_zoom(opts_3D, delta_x, delta_y):
+                delta_scroll = mouse_state['scroll_old'] - mouse_state['scroll']
+                if key_state['shift'] and include_oddballs: # Extra FOV-zoom function.
+                    return zoom_or_fov(opts_3D, -0.1155*delta_scroll, 0)
+                else:
+                    return zoom_or_fov(opts_3D, 0, 0.1155*delta_scroll)
+            return fixed_zoom
+    if mouse_state[2] and key_state['shift']: # Shift+middle drag: pan (shift orbit center).
+        return change_orbit_center
+    if mouse_state[2] and key_state['control']: # Extra roll function. No longer in blender and used ctrl+shift+wheel.
+        return roll_camera
+    if mouse_state[2]: # Middle drag: orbit.
+        return orbit
+    if include_oddballs and key_state['c']: # Esoteric blender setting.
+        return clip_plane
+    if include_oddballs and key_state['y']: # Not in blender.
+        return shear_view
+    if include_oddballs and key_state['a'] and key_state['shift']: # Very not in blender.
+        return shear_far_clipplane
+    if include_oddballs and key_state['a']: # Very not in blender.
+        return shear_near_clipplane
+    return None
 
 #############################################################################
 

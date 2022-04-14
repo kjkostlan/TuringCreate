@@ -111,6 +111,7 @@ def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z 
 
 def mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size = 0.1):
     # Makes 4 spherical meshes. Note: z=-1 is near, z=+1 is far clippin plane.
+    # Making new meshes every frame is inefficient, so the resolution is kept low.
     four_corners = np.zeros([3,4])
     ed = 1.0-margin_from_edge
     four_corners[0,:] = [-ed,ed,-ed,ed]; four_corners[1,:] = [ed,ed,-ed,-ed] # Clockwise from top left.
@@ -118,9 +119,9 @@ def mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size =
     fc_world = quat34.cam44_invv(cam44, four_corners)
     dist = 0.707*(np.linalg.norm(fc_world[:,0]-fc_world[:,2])) # How far apart sets how large we draw them.
     meshes = {}
-    #print('Four corners:\n',fc_world)
+    #print('Dist:',dist,'Corners:\n', fc_world)
     for i in range(4):
-        sphere_mesh = primitives.sphere(resolution=16)
+        sphere_mesh = primitives.sphere(resolution=8)
         sphere_mesh['verts'] = sphere_mesh['verts']*0.5*relative_size*dist
         sphere_mesh['verts'] = sphere_mesh['verts'] + np.expand_dims(fc_world[:,i],axis=1)
         meshes['corner_sphere'+str(i)] = sphere_mesh
@@ -156,7 +157,7 @@ def ui_demo():
     # Tests the panda3D input.
     txt_lines = ['This demo reports key and mouse inputs as text onscreen. There is no 3D scene.']
     txt_lines.append('It should report all three mouse buttons, and mouse move/drag.')
-    txt_lines.append('It should also report both normal and special keys.')
+    txt_lines.append('It should treat normal and special keys the same.')
     txt_lines.append('Finally, it should respond to resizing the screen.')
 
     def every_frame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
@@ -165,21 +166,37 @@ def ui_demo():
         for k,v in key_state.items():
             if v:
                 keys_pressed.append(k)
-        txt_lines1.append('Keys pressed: '+' '.join(keys_pressed))
+        txt_lines1.append('Keys down: '+' '.join(keys_pressed))
         mouse_pressed = []
         for i in range(16):
             if i in mouse_state and mouse_state[i]:
                 mouse_pressed.append(str(i))
-        txt_lines1.append('Mouse buttons pressed: '+' '.join(mouse_pressed))
+        txt_lines1.append('Mouse buttons down: '+' '.join(mouse_pressed))
+        mouse_string = 'Mouse: '
+        for k in ['x_old','x','y_old','y','scroll_old','scroll']:
+            mouse_string = mouse_string+k+'='+'{:.3f}'.format(mouse_state[k])+' '
+        txt_lines1.append(mouse_string)
         txt_lines1.append('Screen state: '+str(screen_state))
+        throttle = app_state.get('fps_throttle', False)
+        if throttle:
+            time.sleep(0.5)
+        if 'tab' in key_clicks:
+            throttle = not throttle
+        app_state['fps_throttle'] = throttle
+        throttle_text = 'Tab to enable lag'
+        if throttle:
+            throttle_text = 'LAG ON: Tab to disable lag'
+        txt_lines1.append(throttle_text)
         if len(mouse_clicks)>0:
-            txt_lines1.append('Mouse just clicked (set):'+str(mouse_clicks))
+            txt_lines1.append('Mouse(s) just clicked (a set):'+str(mouse_clicks))
         if len(key_clicks)>0:
-            txt_lines1.append('Key just clicked (set):'+str(key_clicks))
+            txt_lines1.append('Key(s) just clicked (a set):'+str(key_clicks))
+        if mouse_state['scroll_old'] != mouse_state['scroll']:
+            txt_lines1.append('Wheel just scrolled')
         txt = '\n'.join(txt_lines1)
         return c.assoc_in(app_state, ['onscreen_text','text'],txt)
     scene0 = {'camera':{'mat44':np.identity(4)}}
-    txt = {'xy':[-1.25,0.9],'align':'left','text':'This text should only last one frame'}
+    txt = {'xy':[-1.325,0.9],'align':'left','text':'This text should only last one frame'}
     x = panda3dsetup.App(c.assoc_in(scene0, ['onscreen_text'],txt), every_frame)
 
 def render_sync_demo():
@@ -436,41 +453,80 @@ def camera_demo():
     #f = 3.5 # f # kindof the f-number. A 90 degree FOV is an f of 1.0 and telophotos would be f>10. (1 DOF)
     #cl = [0.002, 1000] # the [near, far] clipping plane. For very weird cameras far can be nearer. (2 DOF)
 
-    q = [1,0,0,0]
-    v = [0,0,0]
-    f = 1.414#*0.72
-    cl = [0.01, 100]
-    y = [1, 0] # [y-stretch, y shear in x direction] of the camera image. Usually [1,0] (2 DOF)
-    a = [0.0,0,0,0] # Far clipping plane shear slope (applied after y), + is away from camera [near-x, near-y, far-x, far-y]. Usually all zero. (4 DOF)
-    cam44 = quat34.qvfcyaTOcam44(q,v,f,c=cl,y=y,a=a)
     app_state = simple_init_state(); app_state['show_fps'] = True
     #all_meshes = {**make_cube_grid(),**corners}
     app_state = c.assoc_in(app_state,['render', 'children'], make_cube_grid())
 
-    #apply_mouse_camera_fn(app_state, mouse_state, fn)
-    fn_map_keys = {'a':nav3D.orbit,'b':nav3D.change_orbit_center,'c':nav3D.zoom_or_fov,'d':nav3D.rot_camera,
-                   'e':nav3D.clip_plane,'f':nav3D.shear_view,'g':nav3D.shear_near_clipplane,
-                   'h':nav3D.shear_far_clipplane,'escape':nav3D.reset}
+    def sc_format(x): #Scalar format
+        if x<=0 and x>-1e-10: # Annoying sign z-fighting, the <= IS needed
+            return '0.0000'
+        out = np.format_float_positional(x, unique=False, precision=4)
+        return out
 
     def every_frame_func(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
-        f_camstate_deltax_deltay = None
-        for k in key_state.keys():
-            if key_state[k] and k in fn_map_keys:
-                f_camstate_deltax_deltay = fn_map_keys[k]
-        if f_camstate_deltax_deltay is not None:
-            app_state = nav3D.apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay, drag_only=False)
-            objs = app_state['render']['children'].copy()
-            cam44 = app_state['camera']['mat44']
-            corners = mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size = 0.1)
-            for ck in corners.keys():
-                objs[ck] = corners[ck]
-            app_state = c.assoc_in(app_state,['render','children'],objs)
-            return app_state
+        app_state = app_state.copy()
+        if key_state['escape']:
+            app_state = nav3D.apply_mouse_camera_fn(app_state, mouse_state, nav3D.reset)
+        f_camstate_deltax_deltay = nav3D.blender_fn(mouse_state, key_state, include_oddballs=True)
+        if f_camstate_deltax_deltay is not None and 'nav3D_cam' in app_state:
+            app_state = nav3D.apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay)
         else:
-            return nav3D.empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+            app_state = nav3D.empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+        cam44 = app_state['camera']['mat44']
+        objs = app_state['render']['children'].copy()
+        corners = mark_corners(cam44, clip_z_value=0.995, margin_from_edge=0.05, relative_size = 0.1)
+        for ck in corners.keys():
+            objs[ck] = {'mesh':corners[ck]}
+        app_state = c.assoc_in(app_state,['render','children'],objs)
+        lines = ['Move the camera like Blender! The camera itself is a 4x4 matrix.']
+        lines.append('The 4 "corner" spheres should stay in a fixed square pattern on the screen.')
+        if ';' in key_clicks:
+            app_state['show_controls'] = not app_state.get('show_controls', False)
+        if app_state.get('show_controls', False):
+            lines = lines + ['; to toggle controls', 'Middle click+drag to orbit', 'Scroll to zoom (shift for the other zoom)']
+            lines = lines + ['Shift middle drag to strafe', 'Ctrl middle drag to roll', 'C+mousemove to change clipping planes']
+            lines = lines + ['Y+mousemove to shear view', 'A+mousemove+(shift) to shear clipping planes']
+            lines = lines + ['Escape to reset view']
+        else:
+            lines.append('; to toggle controls (all 15 DOFs can be modified)')
+        lines.append('The camera parameters are shown below:')
+        q,v,f,c_,y,a = quat34.cam44TOqvfcya(cam44)
+        p_new = [q,v,f,c_,y,a]; letters = ['q','v','f','cl','y','a']
+        p_old = app_state.get('old_cam_param',p_new).copy()
+        desc = ['(Quaterion applied to cam)']
+        desc.append('(Camera center)'); desc.append('(Camera f-ratio, > 10 is telophoto)')
+        desc.append('(Clipping [near, far] plane)'); desc.append('(Screen-based shear)')
+        desc.append('(View frustum shear, unusual effect)')
+        old_numstrs = []; new_numstrs = []
+        old_changes = app_state.get('last_last_changes',[False]*len(p_new))
+        for i in range(len(p_new)):
+            maybe_d = ''
+            if i==2: # Scalars
+                old_numstr = sc_format(p_old[i])
+                new_numstr = sc_format(p_new[i])
+            else:
+                old_numstr = str([sc_format(p) for p in p_old[i]])
+                new_numstr = str([sc_format(p) for p in p_new[i]])
+            old_numstr = old_numstr.replace("'",'')
+            new_numstr = new_numstr.replace("'",'')
+            if old_changes[i]:
+                maybe_d = desc[i]
+            lines.append(letters[i]+' = '+new_numstr+' '+maybe_d)
+            old_numstrs.append(old_numstr); new_numstrs.append(new_numstr)
+        any_mouse_action = np.abs(mouse_state['x']-mouse_state['x_old']) + np.abs(mouse_state['y']-mouse_state['y_old']) > 0.001
+        any_mouse_action = any_mouse_action or np.abs(mouse_state['scroll']-mouse_state['scroll_old'])>0 or key_state['escape']
+        if any_mouse_action and f_camstate_deltax_deltay is not None:
+            app_state['last_last_changes'] = [old_numstrs[ii] != new_numstrs[ii] for ii in range(len(p_new))]
+            app_state['old_cam_param'] = p_new
+
+        txt = {'xy':[-1.325,0.9],'align':'left','text':'\n'.join(lines)}
+        app_state = c.assoc_in(app_state, ['onscreen_text'],txt)
+        return app_state
+
 
     #print('Cam44 default:',app_state['camera'])
     #q0,v0,f0,c0,y0,a0 = quat34.cam44TOqvfcya(app_state['camera']['mat44'])
     #print('App state camera: q:', q0, 'v:', v0, 'f:', f0, 'c:', c0, 'y:', y0, 'a:', a0)
     #app_state['camera'] = {'mat44':cam44}
-    x = panda3dsetup.App(app_state, every_frame_func)
+    # Turn off culling.
+    x = panda3dsetup.App(app_state, every_frame_func, panda_config={'view-frustum-cull':0})
