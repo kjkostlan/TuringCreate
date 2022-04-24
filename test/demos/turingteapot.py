@@ -27,9 +27,7 @@ def simple_init_state(colored_lights=True): # Start simple.
                   {'pos':[0.0, 32.0, 0.0],'color':[0,0,512,1]}]
     else:
         lights = [{'pos':[0,-32,0],'color':[1024,1024,1024,1]}]
-    return {'render':render,
-            'lights':lights,
-            'camera':{'mat44':cam44}}
+    return {**render, **{'lights':lights,'camera':{'mat44':cam44}}}
 
 def makeRandomMesh(nVert=None, nFace=None):
     if nVert is None:
@@ -94,7 +92,7 @@ def everyFrame_default(app_state, mouse_state, key_state, mouse_clicks, key_clic
     return app_state
 
 def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z = 1, radius = 0.05):
-    # Put these into ['render', 'children'] of the world.
+    # Put these into ['children'] of the world.
     cube_mesh = primitives.cube(); cube_mesh['verts'] = cube_mesh['verts']*radius
     obj = {'mat44': np.identity(4), 'mesh':cube_mesh}
     objs = {}
@@ -154,7 +152,7 @@ def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, 
     for i in range(len(packs)):
         line = packs[i][0]
         if 'Create object' in line:
-            line = line+'('+str(len(app_state['render']['children'].keys()))+' obs+texts)'
+            line = line+'('+str(len(app_state['children'].keys()))+' obs+texts)'
         if i==app_state['current_task']:
             line = line+'<<<'
         txt_lines.append(line)
@@ -164,7 +162,7 @@ def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, 
 
 ############################### Demos #################################
 
-def ui_demo():
+def mouse_key_input_demo():
     # Tests the panda3D input.
     txt_lines = ['This demo reports key and mouse inputs as text onscreen. There is no 3D scene.']
     txt_lines.append('It should report all three mouse buttons, and mouse move/drag.')
@@ -225,14 +223,14 @@ def render_sync_demo():
         mesh = meshes[np.random.randint(len(meshes))]
         new_obj = {'mesh':mesh,'mat44':rand_place44()}
         rand_k = str(np.random.random())
-        return c.assoc_in(app_state,['render','children',rand_k], new_obj)
+        return c.assoc_in(app_state,['children',rand_k], new_obj)
 
     def create_text_tweak(app_state):
         text = {'text':'text'+str(np.random.randn()),'color':np.random.random(4)}
         text['color'][3] = text['color'][3]**0.25
         rand_k = str(np.random.random())
         new_text = {'text':text,'mat44':rand_place44()}
-        return c.assoc_in(app_state,['render','children',rand_k], new_text)
+        return c.assoc_in(app_state,['children',rand_k], new_text)
 
     def create_light_tweak(app_state):
         light = {'color':np.random.random(4)*400.0,'pos':np.random.randn(3)*16}
@@ -246,7 +244,7 @@ def render_sync_demo():
 
     def move_obj_tweak(app_state, move_these='mesh'):
         if move_these != 'light':
-            ch = app_state['render']['children']
+            ch = app_state['children']
         else:
             ch = app_state['lights']
         ch = ch.copy()
@@ -269,22 +267,22 @@ def render_sync_demo():
                 #ch = c.update_in(ch, [k, subk], lambda m44:np.matmul(tweak_m44_1, m44))
                 ch = c.update_in(ch, [k, subk], lambda m44:np.matmul(m44,rand_m44))
         if move_these != 'light':
-            return c.assoc_in(app_state,['render','children'],ch)
+            return c.assoc_in(app_state,['children'],ch)
         else:
             return c.assoc_in(app_state,['lights'],ch)
 
     def tweak_meshes(app_state):
-        ch = app_state['render']['children']
+        ch = app_state['children']
         for k in list(ch.keys()):
             if 'mesh' in ch[k]:
                 verts = ch[k]['mesh']['verts']
                 verts = verts+np.random.randn(*verts.shape)*0.1
                 ch = c.assoc_in(ch, [k, 'mesh', 'verts'], verts)
-        return c.assoc_in(app_state,['render', 'children'], ch)
+        return c.assoc_in(app_state,['children'], ch)
 
     def delete_obj_tweak(app_state, delete_these='mesh'):
         if delete_these != 'light':
-            ch = app_state['render']['children']
+            ch = app_state['children']
         else:
             ch = app_state['lights']
         ch = ch.copy()
@@ -293,7 +291,7 @@ def render_sync_demo():
                 del ch[k]
                 break # Only delete one thing.
         if delete_these != 'light':
-            return c.assoc_in(app_state,['render','children'],ch)
+            return c.assoc_in(app_state,['children'],ch)
         else:
             return c.assoc_in(app_state,['lights'],ch)
 
@@ -391,7 +389,7 @@ def tree_demo():
         app_state = app_state.copy()
         substeps_left = app_state.get('move_substeps',0)
         if substeps_left == 0: # Every time substeps runs out, choose a new path and xform.
-            app_state['mat44_path'] = ['render']+select_random_path(app_state['render'])+['mat44']
+            app_state['mat44_path'] = select_random_path(app_state)+['mat44']
             app_state['mat44_begin'] = np.copy(c.get_in(app_state, app_state['mat44_path']))
             app_state['mat44_end'] = derive_m44(app_state['mat44_begin'],move=move, rot=rot, scale=scale)
             app_state['move_substeps'] = substeps - 1
@@ -402,15 +400,15 @@ def tree_demo():
             weight1 = 1.0-app_state['move_substeps']/(substeps-1+1e-100)
             mat44 = app_state['mat44_begin']*(1.0-weight1) + app_state['mat44_end']*weight1
             #import copy; app_state = copy.deepcopy(app_state) # DEBUG:
-            #app_state['render'] = app_state['render'].copy() #DEBUG
-            #app_state['render']['children'] = app_state['render']['children'].copy() #DEBUG
+            #app_state = app_state.copy() #DEBUG
+            #app_state['children'] = app_state['children'].copy() #DEBUG
             #print('m44 diff norm:', np.sum(np.abs(mat44-c.get_in(app_state, app_state['mat44_path']))))
             return c.assoc_in(app_state, app_state['mat44_path'], mat44)
         return app_state
 
     def reparent_branch_tweak(app_state):
         # Randomally reparent a branch.
-        tree = app_state['render']
+        tree = app_state
         n_try = 0
         while True:
             branch_path = select_random_path(tree) #Paths to objects, so will end in ['children', some_key]
@@ -425,7 +423,7 @@ def tree_demo():
             tree2 = c.assoc_in(tree1, destination_path, branch)
             break
         time.sleep(0.25)
-        return c.assoc_in(app_state,['render'], tree2)
+        return tree2
 
     packs = []
     packs.append(['Move branch',lambda app_state:move_branch_tweak(app_state,move=True, rot=False, scale=False), 128])
@@ -441,7 +439,7 @@ def tree_demo():
     init_objs = {}
     for _ in range(12):
         init_objs[str(np.random.random())] = make_object()
-    init_state['render'] = {'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}
+    init_state = {**init_state, **{'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}}
     init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[1024,512,256,1]},
                             {'pos':[0.0, 32.0, 0.0],'color':[512,768,512,1]},
                             {'pos':[0.0, 0.0, 32.0],'color':[256,256,1024,1]}]
@@ -459,7 +457,7 @@ def tree_demo():
 def camera_demo():
     # Is the camera working properly?
     app_state = simple_init_state(); app_state['show_fps'] = True
-    app_state = c.assoc_in(app_state,['render', 'children'], make_cube_grid())
+    app_state = c.assoc_in(app_state,['children'], make_cube_grid())
 
     def sc_format(x): #Scalar format
         if x<=0 and x>-1e-10: # Annoying sign z-fighting, the = in <= IS needed
@@ -474,7 +472,7 @@ def camera_demo():
         txt_m44 = quat34.m33vTOm44(np.identity(3),txt_locations[i])
         txt_dict = {'text':txt_txt[i],'color':txt_colors[i,:]}
         ob = {'text':txt_dict, 'mat44':txt_m44}
-        app_state = c.assoc_in(app_state,['render', 'children','text '+txt_txt[i]], ob)
+        app_state = c.assoc_in(app_state,['children','text '+txt_txt[i]], ob)
 
     def every_frame_func(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
         app_state = app_state.copy()
@@ -486,7 +484,7 @@ def camera_demo():
         else:
             app_state = nav3D.empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
         cam44 = app_state['camera']['mat44']
-        objs = app_state['render']['children'].copy()
+        objs = app_state['children'].copy()
         corners = mark_corners(cam44, clip_z_value=63.0/64.0, margin_from_edge=0.05, relative_size = 0.1)
         cursor_screen = np.zeros([3,1]); cursor_screen[:,0] = [mouse_state['x'],mouse_state['y'],63.0/64.0]
         one_mesh_dict = mark_on_screen(cam44, cursor_screen, ['screen_mesh'], relative_size = 1.0/32.0)
@@ -497,7 +495,7 @@ def camera_demo():
             app_state['stretch_to_screen'] = stretch
         for ck in corners.keys():
             objs[ck] = {'mesh':corners[ck]}
-        app_state = c.assoc_in(app_state,['render','children'],objs)
+        app_state = c.assoc_in(app_state,['children'],objs)
         lines = ['Move the camera like Blender! The camera itself is a 4x4 matrix.']
         lines.append('The 4 "corner" spheres should stay fixed when the camera moves, and one sphere follows mouse.')
         if ';' in key_clicks:

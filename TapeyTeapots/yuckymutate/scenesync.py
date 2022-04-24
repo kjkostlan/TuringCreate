@@ -156,9 +156,15 @@ def sync_onscreen_text(panda_objects, old_state, new_state):
             panda_objects['onscreen_text'] = shapebuild.build_onscreen_text(new_text)
 
 def sync(old_state, new_state, screen_state, panda_objects, the_magic_pivot):
-    old_render = old_state.get('render',{})
-    new_render = new_state.get('render',{})
-    lights_old = old_state.get('lights',[])
+    # We render a nested sequence of notes, and the state has 'type' and maybe 'children'.
+    # 'type' can be string or a function (TODO).
+    # TODO: 'lights', 'camera', etc are currently on the global level. We can put them
+    #  at other levels i.e. to have a streetlight or drone object that has a light/camera in it.
+    if old_state is None:
+        old_state = {}
+    if new_state is None:
+        new_state = {}
+    lights_old = old_state.get('lights',[]) # Lights are seperate from the tree. TODO: change this.
     lights_new = new_state.get('lights',[])
 
     if new_state.get('show_fps',False):
@@ -178,7 +184,7 @@ def sync(old_state, new_state, screen_state, panda_objects, the_magic_pivot):
             render.set_light(lightp)
         panda_objects['das_blinkin_lights'] = lights_panda_new
 
-    sync_renders(old_render, new_render, np.identity(4), panda_objects, the_magic_pivot)
+    sync_renders(old_state, new_state, np.identity(4), panda_objects, the_magic_pivot)
 
     if 'camera' in old_state:
         old_camera = old_state['camera']['mat44']
