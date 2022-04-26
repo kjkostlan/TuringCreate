@@ -12,13 +12,13 @@ from TapeyTeapots.meshops import quat34, primitives
 def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simple.
     q = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44 = quat34.qvfcyaTOcam44(q,[-5,0,0],f=2.0)
-    the_mesh = {'mesh':makeRandomMesh(),'mat44':np.identity(4), 'children':{}}
+    the_mesh = {'mesh':makeRandomMesh(),'mat44':np.identity(4), 'bearcubs':{}}
     mat44_randmesh = np.identity(4); mat44_randmesh[3,0:3] = [1,1,1]
-    the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_randmesh, 'children':{}}
+    the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_randmesh, 'bearcubs':{}}
     render = {'mat44':np.identity(4),
-              'children': {'the_mesh':the_mesh}}
+              'bearcubs': {'the_mesh':the_mesh}}
     if not make_random_mesh:
-        del render['children']['the_mesh']
+        del render['bearcubs']['the_mesh']
     if colored_lights:
         lights = [{'pos':[4.0, -32.0, 0.0],'color':[1024,0,0,1]},
                   {'pos':[0.0, -32.0, 4.0],'color':[0,1024,0,1]},
@@ -31,7 +31,7 @@ def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simpl
     light_dict = {}
     for i in range(len(lights)):
         light_dict[str(i)] = {'pos':lights[i]['pos'],'light':{'color':lights[i]['color']}}
-    render['children']['lights'] = {'children':light_dict}
+    render['bearcubs']['lights'] = {'bearcubs':light_dict}
     return render
 
 def makeRandomMesh(nVert=None, nFace=None):
@@ -97,7 +97,7 @@ def everyFrame_default(app_state, mouse_state, key_state, mouse_clicks, key_clic
     return app_state
 
 def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z = 1, radius = 0.05):
-    # Put these into ['children'] of the world.
+    # Put these into ['bearcubs'] of the world.
     cube_mesh = primitives.cube(); cube_mesh['verts'] = cube_mesh['verts']*radius
     obj = {'mat44': np.identity(4), 'mesh':cube_mesh}
     objs = {}
@@ -157,7 +157,7 @@ def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, 
     for i in range(len(packs)):
         line = packs[i][0]
         if 'Create object' in line:
-            line = line+'('+str(len(app_state['children'].keys()))+' obs+texts)'
+            line = line+'('+str(len(app_state['bearcubs'].keys()))+' obs+texts)'
         if i==app_state['current_task']:
             line = line+'<<<'
         txt_lines.append(line)
@@ -228,14 +228,14 @@ def render_sync_demo():
         mesh = meshes[np.random.randint(len(meshes))]
         new_obj = {'mesh':mesh,'mat44':rand_place44()}
         rand_k = str(np.random.random())
-        return c.assoc_in(app_state,['children','shapes','children',rand_k], new_obj)
+        return c.assoc_in(app_state,['bearcubs','shapes','bearcubs',rand_k], new_obj)
 
     def create_text_tweak(app_state):
         text = {'text':'text'+str(np.random.randn()),'color':np.random.random(4)}
         text['color'][3] = text['color'][3]**0.25
         rand_k = str(np.random.random())
         new_text = {'text':text,'mat44':rand_place44()}
-        return c.assoc_in(app_state,['children','texts','children',rand_k], new_text)
+        return c.assoc_in(app_state,['bearcubs','texts','bearcubs',rand_k], new_text)
 
     def create_light_tweak(app_state):
         light = {'color':np.random.random(4)*40.0}
@@ -243,7 +243,7 @@ def render_sync_demo():
         rand_k = str(np.random.random())
         lnode = {'light':light, 'pos':np.random.randn(3)*16}
         #new_light = {'light':light,'pos':np.random.randn(3)*4}
-        return c.assoc_in(app_state,['children','lights','children',rand_k], lnode)
+        return c.assoc_in(app_state,['bearcubs','lights','bearcubs',rand_k], lnode)
 
     def mpower(m, pwr):
         return scipy.linalg.expm(pwr*scipy.linalg.logm(m))
@@ -257,7 +257,7 @@ def render_sync_demo():
             ky = 'texts'
         else:
             raise Exception('move_these which kind of objects unrecognized:'+move_these)
-        ch = app_state['children'].get(ky,{}).get('children',{}).copy()
+        ch = app_state['bearcubs'].get(ky,{}).get('bearcubs',{}).copy()
         #tweak_m44_inv = np.linalg.inv(tweak_m44)
         for k in list(ch.keys()):
             tweak_m44_1 = tweak_m44
@@ -276,16 +276,16 @@ def render_sync_demo():
                 ch = c.update_in(ch, [k, 'mat44'], lambda m44:np.matmul(m44,rand_m44))
             elif 'pos' in ch[k]:
                 ch = c.update_in(ch, [k, 'pos'], lambda v:quat34.m44v(rand_m44,v)[:,0])
-        return c.assoc_in(app_state,['children', ky, 'children'],ch)
+        return c.assoc_in(app_state,['bearcubs', ky, 'bearcubs'],ch)
 
     def tweak_meshes(app_state):
-        shapes = app_state['children'].get('shapes',{}).get('children',{})
+        shapes = app_state['bearcubs'].get('shapes',{}).get('bearcubs',{})
         for k in list(shapes.keys()):
             if 'mesh' in shapes[k]:
                 verts = shapes[k]['mesh']['verts']
                 verts = verts+np.random.randn(*verts.shape)*0.1
                 shapes = c.assoc_in(shapes, [k, 'mesh', 'verts'], verts)
-        return c.assoc_in(app_state,['children', 'shapes', 'children'], shapes)
+        return c.assoc_in(app_state,['bearcubs', 'shapes', 'bearcubs'], shapes)
 
     def delete_obj_tweak(app_state, delete_these='mesh'):
         if delete_these == 'mesh':
@@ -296,10 +296,10 @@ def render_sync_demo():
             ky = 'texts'
         else:
             raise Exception('move_these which kind of objects unrecognized:'+move_these)
-        ch = app_state['children'].get(ky,{}).get('children',{}).copy()
+        ch = app_state['bearcubs'].get(ky,{}).get('bearcubs',{}).copy()
         for k in list(ch.keys()):
             del ch[k]; break # Only delete one thing.
-        return c.assoc_in(app_state,['children',ky,'children'], ch)
+        return c.assoc_in(app_state,['bearcubs',ky,'bearcubs'], ch)
 
     def move_camera_tweak(app_state):
         q,v,f,_,_,_ = quat34.cam44TOqvfcya(app_state['camera']['mat44'])
@@ -366,17 +366,17 @@ def tree_demo():
         else:
             path = []
         stop_chance = 0.333
-        if np.random.random()<=stop_chance or 'children' not in sub_tree:
+        if np.random.random()<=stop_chance or 'bearcubs' not in sub_tree:
             return path
-        if sub_tree['children'] is None:
-            raise Exception('Subtree children set to none, likely bug in this demo.')
-        kys = list(sub_tree['children'].keys())
+        if sub_tree['bearcubs'] is None:
+            raise Exception('Subtree bearcubs set to none, likely bug in this demo.')
+        kys = list(sub_tree['bearcubs'].keys())
         if len(kys) == 0:
             return path
         k = kys[np.random.randint(len(kys))]
         if 'light' in k:
             return path
-        return select_random_path(sub_tree['children'][k], path+['children', k])
+        return select_random_path(sub_tree['bearcubs'][k], path+['bearcubs', k])
 
     def derive_m44(m44, move=True, rot=True, scale=True):
         #Randomally changes a matrix 44.
@@ -409,7 +409,7 @@ def tree_demo():
             mat44 = app_state['mat44_begin']*(1.0-weight1) + app_state['mat44_end']*weight1
             #import copy; app_state = copy.deepcopy(app_state) # DEBUG:
             #app_state = app_state.copy() #DEBUG
-            #app_state['children'] = app_state['children'].copy() #DEBUG
+            #app_state['bearcubs'] = app_state['bearcubs'].copy() #DEBUG
             #print('m44 diff norm:', np.sum(np.abs(mat44-c.get_in(app_state, app_state['mat44_path']))))
             return c.assoc_in(app_state, app_state['mat44_path'], mat44)
         return app_state
@@ -419,8 +419,8 @@ def tree_demo():
         tree = app_state
         n_try = 0
         while True:
-            branch_path = select_random_path(tree) #Paths to objects, so will end in ['children', some_key]
-            destination_path = select_random_path(tree)+['children',str(np.random.random())]
+            branch_path = select_random_path(tree) #Paths to objects, so will end in ['bearcubs', some_key]
+            destination_path = select_random_path(tree)+['bearcubs',str(np.random.random())]
             if '/'.join(branch_path) in '/'.join(destination_path):
                 n_try = n_try+1
                 if n_try>512:
@@ -447,12 +447,12 @@ def tree_demo():
     init_objs = {}
     for _ in range(12):
         init_objs[str(np.random.random())] = make_object()
-    init_state = {**init_state, **{'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}}
+    init_state = {**init_state, **{'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'bearcubs':init_objs}}
     def v2m44(v):
         return quat34.m33vTOm44(np.identity(3),v)
-    init_state['children']['light0'] = {'mat44':v2m44([64.0, 0.0, 0.0]),'light':{'color':[1024,512,256,1]}}
-    init_state['children']['light1'] = {'mat44':v2m44([0.0, 64.0, 0.0]),'light':{'color':[512,768,512,1]}}
-    init_state['children']['light2'] = {'mat44':v2m44([0.0, 0.0, 64.0]),'light':{'color':[256,256,1024,1]}}
+    init_state['bearcubs']['light0'] = {'mat44':v2m44([64.0, 0.0, 0.0]),'light':{'color':[1024,512,256,1]}}
+    init_state['bearcubs']['light1'] = {'mat44':v2m44([0.0, 64.0, 0.0]),'light':{'color':[512,768,512,1]}}
+    init_state['bearcubs']['light2'] = {'mat44':v2m44([0.0, 0.0, 64.0]),'light':{'color':[256,256,1024,1]}}
 
     txt_lines = ['This demo tests updating a hierarchy.']
     txt_lines.append('Updates include moving branches around as well as changing the tree structure.')
@@ -467,7 +467,7 @@ def tree_demo():
 def camera_demo():
     # Is the camera working properly?
     app_state = simple_init_state(make_random_mesh=False); app_state['show_fps'] = True
-    app_state = c.assoc_in(app_state,['children','cube_grid','children'], make_cube_grid())
+    app_state = c.assoc_in(app_state,['bearcubs','cube_grid','bearcubs'], make_cube_grid())
 
     def sc_format(x): #Scalar format
         if x<=0 and x>-1e-10: # Annoying sign z-fighting, the = in <= IS needed
@@ -482,7 +482,7 @@ def camera_demo():
         txt_m44 = quat34.m33vTOm44(np.identity(3),txt_locations[i])
         txt_dict = {'text':txt_txt[i],'color':txt_colors[i,:]}
         ob = {'text':txt_dict, 'mat44':txt_m44}
-        app_state = c.assoc_in(app_state,['children','text '+txt_txt[i]], ob)
+        app_state = c.assoc_in(app_state,['bearcubs','text '+txt_txt[i]], ob)
 
     def every_frame_func(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
         app_state = app_state.copy()
@@ -494,7 +494,7 @@ def camera_demo():
         else:
             app_state = nav3D.empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
         cam44 = app_state['camera']['mat44']
-        objs = app_state['children'].copy()
+        objs = app_state['bearcubs'].copy()
         corners = mark_corners(cam44, clip_z_value=63.0/64.0, margin_from_edge=0.05, relative_size = 0.1)
         cursor_screen = np.zeros([3,1]); cursor_screen[:,0] = [mouse_state['x'],mouse_state['y'],63.0/64.0]
         one_mesh_dict = mark_on_screen(cam44, cursor_screen, ['screen_mesh'], relative_size = 1.0/32.0)
@@ -505,7 +505,7 @@ def camera_demo():
             app_state['stretch_to_screen'] = stretch
         for ck in corners.keys():
             objs[ck] = {'mesh':corners[ck]}
-        app_state = c.assoc_in(app_state,['children'],objs)
+        app_state = c.assoc_in(app_state,['bearcubs'],objs)
         lines = ['Move the camera like Blender! The camera itself is a 4x4 matrix.']
         lines.append('The 4 "corner" spheres should stay fixed when the camera moves, and one sphere follows mouse.')
         if ';' in key_clicks:

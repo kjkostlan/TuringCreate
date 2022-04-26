@@ -20,9 +20,9 @@ def update_xforms(new_render_branch, mat44_ancestors, panda_objects_branch, modi
     for k in list(shapebuild.build_mesh3('',None).keys())+['text']:
         if k in panda_objects_branch and panda_objects_branch[k] is not None:
             panda_objects_branch[k].set_transform(xform)
-    if 'children' in new_render_branch:
-        for ky in new_render_branch['children'].keys():
-            update_xforms(new_render_branch['children'][ky], mat44, panda_objects_branch['children'][ky], modified_light_map, path+[ky])
+    if 'bearcubs' in new_render_branch:
+        for ky in new_render_branch['bearcubs'].keys():
+            update_xforms(new_render_branch['bearcubs'][ky], mat44, panda_objects_branch['bearcubs'][ky], modified_light_map, path+[ky])
 
 def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_objects_branch, pivot, modified_light_map, path):
     # This relies on the vanilla side not mutating anything, just making shallow defensive copies.
@@ -110,19 +110,19 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
             modified_light_map['.'.join(path)] = None # Mark as deleted.
     if (change_xform or change_light) and new_light is not None: # Update light poistion this-level.
         _mutate2(modified_light_map, '.'.join(path), 'mat44', mat44)
-    children_old = old_render_branch.get('children', {})
-    children_new = new_render_branch.get('children', {})
-    k_set = set(list(children_old.keys())+list(children_new.keys()))
+    bearcubs_old = old_render_branch.get('bearcubs', {})
+    bearcubs_new = new_render_branch.get('bearcubs', {})
+    k_set = set(list(bearcubs_old.keys())+list(bearcubs_new.keys()))
 
-    if 'children' not in panda_objects_branch:
-        panda_objects_branch['children'] = {}
+    if 'bearcubs' not in panda_objects_branch:
+        panda_objects_branch['bearcubs'] = {}
 
     for k in k_set:
-        ch_old = children_old.get(k,None)
-        ch_new = children_new.get(k,None)
-        if ch_new is not None and k not in panda_objects_branch['children']:
-            panda_objects_branch['children'][k] = {}
-        panda_branch1 = panda_objects_branch['children'].get(k,{})
+        ch_old = bearcubs_old.get(k,None)
+        ch_new = bearcubs_new.get(k,None)
+        if ch_new is not None and k not in panda_objects_branch['bearcubs']:
+            panda_objects_branch['bearcubs'][k] = {}
+        panda_branch1 = panda_objects_branch['bearcubs'].get(k,{})
         if ch_old is not ch_new:
             sync_renders(ch_old, ch_new, mat44, panda_branch1, pivot, modified_light_map, path+[k])
         elif change_xform and ch_new is not None:
@@ -206,7 +206,7 @@ def sync_lights(panda_objects, light_modifications, the_magic_pivot):
     panda_objects['scenesync.das_blinkin_lights'] = light_objs
 
 def sync(old_state, new_state, screen_state, panda_objects, the_magic_pivot):
-    # We render a nested sequence of notes, and the state has 'type' and maybe 'children'.
+    # We render a nested sequence of notes, and the state has 'type' and maybe 'bearcubs'.
     # 'type' can be string or a function (TODO).
     # TODO: 'lights', 'camera', etc are currently on the global level. We can put them
     #  at other levels i.e. to have a streetlight or drone object that has a light/camera in it.
