@@ -9,15 +9,16 @@ import TapeyTeapots.pandawrapper as panda3dsetup
 import TapeyTeapots.ui.nav3D as nav3D
 from TapeyTeapots.meshops import quat34, primitives
 
-def simple_init_state(colored_lights=True): # Start simple.
+def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simple.
     q = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44 = quat34.qvfcyaTOcam44(q,[-5,0,0],f=2.0)
     the_mesh = {'mesh':makeRandomMesh(),'mat44':np.identity(4), 'children':{}}
-    mat44_static = np.identity(4)
-    mat44_static[3,0:3] = [1,1,1]
-    the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_static, 'children':{}}
+    mat44_randmesh = np.identity(4); mat44_randmesh[3,0:3] = [1,1,1]
+    the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_randmesh, 'children':{}}
     render = {'mat44':np.identity(4),
-              'children': {'the_mesh':the_mesh, 'the_mesh_static':the_mesh_static}}
+              'children': {'the_mesh':the_mesh}}
+    if not make_random_mesh:
+        del render['children']['the_mesh']
     if colored_lights:
         lights = [{'pos':[4.0, -32.0, 0.0],'color':[1024,0,0,1]},
                   {'pos':[0.0, -32.0, 4.0],'color':[0,1024,0,1]},
@@ -27,7 +28,11 @@ def simple_init_state(colored_lights=True): # Start simple.
                   {'pos':[0.0, 32.0, 0.0],'color':[0,0,512,1]}]
     else:
         lights = [{'pos':[0,-32,0],'color':[1024,1024,1024,1]}]
-    return {**render, **{'lights':lights,'camera':{'mat44':cam44}}}
+    light_dict = {}
+    for i in range(len(lights)):
+        light_dict[str(i)] = {'pos':lights[i]['pos'],'light':{'color':lights[i]['color']}}
+    render['children']['lights'] = {'children':light_dict}
+    return render
 
 def makeRandomMesh(nVert=None, nFace=None):
     if nVert is None:
@@ -223,77 +228,78 @@ def render_sync_demo():
         mesh = meshes[np.random.randint(len(meshes))]
         new_obj = {'mesh':mesh,'mat44':rand_place44()}
         rand_k = str(np.random.random())
-        return c.assoc_in(app_state,['children',rand_k], new_obj)
+        return c.assoc_in(app_state,['children','shapes','children',rand_k], new_obj)
 
     def create_text_tweak(app_state):
         text = {'text':'text'+str(np.random.randn()),'color':np.random.random(4)}
         text['color'][3] = text['color'][3]**0.25
         rand_k = str(np.random.random())
         new_text = {'text':text,'mat44':rand_place44()}
-        return c.assoc_in(app_state,['children',rand_k], new_text)
+        return c.assoc_in(app_state,['children','texts','children',rand_k], new_text)
 
     def create_light_tweak(app_state):
-        light = {'color':np.random.random(4)*400.0,'pos':np.random.randn(3)*16}
+        light = {'color':np.random.random(4)*40.0}
         light['color'][3] = 1.0
         rand_k = str(np.random.random())
+        lnode = {'light':light, 'pos':np.random.randn(3)*16}
         #new_light = {'light':light,'pos':np.random.randn(3)*4}
-        return c.assoc_in(app_state,['lights',rand_k], light)
+        return c.assoc_in(app_state,['children','lights','children',rand_k], lnode)
 
     def mpower(m, pwr):
         return scipy.linalg.expm(pwr*scipy.linalg.logm(m))
 
     def move_obj_tweak(app_state, move_these='mesh'):
-        if move_these != 'light':
-            ch = app_state['children']
+        if move_these == 'mesh':
+            ky = 'shapes'
+        elif move_these == 'light':
+            ky = 'lights'
+        elif move_these == 'text':
+            ky = 'texts'
         else:
-            ch = app_state['lights']
-        ch = ch.copy()
+            raise Exception('move_these which kind of objects unrecognized:'+move_these)
+        ch = app_state['children'].get(ky,{}).get('children',{}).copy()
         #tweak_m44_inv = np.linalg.inv(tweak_m44)
         for k in list(ch.keys()):
-            if move_these in ch[k]:
-                tweak_m44_1 = tweak_m44
-                if 'mat44' in ch[k]:
-                    pos = ch[k]['mat44'][0:3,:]
-                else:
-                    pos = ch[k]['pos']
-                r = np.linalg.norm(pos)
-                #if r<24:
-                #    tweak_m44_1 = tweak_m44_inv
-                subk = 'mat44'
-                if 'mat44' not in ch[k]:
-                    subk = 'pos'
-                rand_m44 = quat34.m44_from_q([1,0.02,0,0], normalize=True)
-                rand_m44[0:3,3] = np.random.randn()*0.125
-                #ch = c.update_in(ch, [k, subk], lambda m44:np.matmul(tweak_m44_1, m44))
-                ch = c.update_in(ch, [k, subk], lambda m44:np.matmul(m44,rand_m44))
-        if move_these != 'light':
-            return c.assoc_in(app_state,['children'],ch)
-        else:
-            return c.assoc_in(app_state,['lights'],ch)
+            tweak_m44_1 = tweak_m44
+            if 'mat44' in ch[k]:
+                pos = ch[k]['mat44'][0:3,:]
+            else:
+                pos = ch[k]['pos']
+            r = np.linalg.norm(pos)
+            #if r<24:
+            #    tweak_m44_1 = tweak_m44_inv
+            rand_m44 = quat34.m44_from_q([1,0.02,0,0], normalize=True)
+            rand_m44[0:3,3] = np.random.randn()*0.125
+            if ky == 'lights': # Move lights much more.
+                rand_m44[0:3,3] = np.random.randn()*1.25
+            if 'mat44' in ch[k]:
+                ch = c.update_in(ch, [k, 'mat44'], lambda m44:np.matmul(m44,rand_m44))
+            elif 'pos' in ch[k]:
+                ch = c.update_in(ch, [k, 'pos'], lambda v:quat34.m44v(rand_m44,v)[:,0])
+        return c.assoc_in(app_state,['children', ky, 'children'],ch)
 
     def tweak_meshes(app_state):
-        ch = app_state['children']
-        for k in list(ch.keys()):
-            if 'mesh' in ch[k]:
-                verts = ch[k]['mesh']['verts']
+        shapes = app_state['children'].get('shapes',{}).get('children',{})
+        for k in list(shapes.keys()):
+            if 'mesh' in shapes[k]:
+                verts = shapes[k]['mesh']['verts']
                 verts = verts+np.random.randn(*verts.shape)*0.1
-                ch = c.assoc_in(ch, [k, 'mesh', 'verts'], verts)
-        return c.assoc_in(app_state,['children'], ch)
+                shapes = c.assoc_in(shapes, [k, 'mesh', 'verts'], verts)
+        return c.assoc_in(app_state,['children', 'shapes', 'children'], shapes)
 
     def delete_obj_tweak(app_state, delete_these='mesh'):
-        if delete_these != 'light':
-            ch = app_state['children']
+        if delete_these == 'mesh':
+            ky = 'shapes'
+        elif delete_these == 'light':
+            ky = 'lights'
+        elif delete_these == 'text':
+            ky = 'texts'
         else:
-            ch = app_state['lights']
-        ch = ch.copy()
+            raise Exception('move_these which kind of objects unrecognized:'+move_these)
+        ch = app_state['children'].get(ky,{}).get('children',{}).copy()
         for k in list(ch.keys()):
-            if delete_these in ch[k] or delete_these == 'light':
-                del ch[k]
-                break # Only delete one thing.
-        if delete_these != 'light':
-            return c.assoc_in(app_state,['children'],ch)
-        else:
-            return c.assoc_in(app_state,['lights'],ch)
+            del ch[k]; break # Only delete one thing.
+        return c.assoc_in(app_state,['children',ky,'children'], ch)
 
     def move_camera_tweak(app_state):
         q,v,f,_,_,_ = quat34.cam44TOqvfcya(app_state['camera']['mat44'])
@@ -368,6 +374,8 @@ def tree_demo():
         if len(kys) == 0:
             return path
         k = kys[np.random.randint(len(kys))]
+        if 'light' in k:
+            return path
         return select_random_path(sub_tree['children'][k], path+['children', k])
 
     def derive_m44(m44, move=True, rot=True, scale=True):
@@ -440,9 +448,11 @@ def tree_demo():
     for _ in range(12):
         init_objs[str(np.random.random())] = make_object()
     init_state = {**init_state, **{'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'children':init_objs}}
-    init_state['lights'] = [{'pos':[32.0, 0.0, 0.0],'color':[1024,512,256,1]},
-                            {'pos':[0.0, 32.0, 0.0],'color':[512,768,512,1]},
-                            {'pos':[0.0, 0.0, 32.0],'color':[256,256,1024,1]}]
+    def v2m44(v):
+        return quat34.m33vTOm44(np.identity(3),v)
+    init_state['children']['light0'] = {'mat44':v2m44([64.0, 0.0, 0.0]),'light':{'color':[1024,512,256,1]}}
+    init_state['children']['light1'] = {'mat44':v2m44([0.0, 64.0, 0.0]),'light':{'color':[512,768,512,1]}}
+    init_state['children']['light2'] = {'mat44':v2m44([0.0, 0.0, 64.0]),'light':{'color':[256,256,1024,1]}}
 
     txt_lines = ['This demo tests updating a hierarchy.']
     txt_lines.append('Updates include moving branches around as well as changing the tree structure.')
@@ -456,8 +466,8 @@ def tree_demo():
 
 def camera_demo():
     # Is the camera working properly?
-    app_state = simple_init_state(); app_state['show_fps'] = True
-    app_state = c.assoc_in(app_state,['children'], make_cube_grid())
+    app_state = simple_init_state(make_random_mesh=False); app_state['show_fps'] = True
+    app_state = c.assoc_in(app_state,['children','cube_grid','children'], make_cube_grid())
 
     def sc_format(x): #Scalar format
         if x<=0 and x>-1e-10: # Annoying sign z-fighting, the = in <= IS needed

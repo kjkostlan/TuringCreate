@@ -26,8 +26,6 @@ def build_light(light, the_pivot):
     light_node = PointLight("point_light")
     light_node.setColor((col[0],col[1],col[2],col[3]))
     light_panda_obj = the_pivot.attach_new_node(light_node)
-    pos = light.get('pos', [0,0,0]) # TODO: fit lights into the standard object tree.
-    light_panda_obj.setPos(pos[0], pos[1], pos[2])
     light_node.attenuation = (1, 0, 1)
     return light_panda_obj
 
