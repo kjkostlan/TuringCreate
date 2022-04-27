@@ -18,6 +18,18 @@ def vert_uvs(mesh, k=0):
             weights[:,v_ix] = weights[:,v_ix] + 1 # count up the number of faces to said vert.
     return moments/weights
 
+def get_relevant_keys(viz_type_set):
+    # All keys that affect the object, except for mat44.
+    # TODO: a bit clumsy for refactoring, etc.
+    out = set()
+    if 'light' in viz_type_set:
+        out = out.union(set(['color']))
+    if 'mesh' in viz_type_set:
+        out = out.union(set(['verts','edges','faces','uvs','colors','is_vert_selected','selected_edges','is_face_selected','selected_verts']))
+    if 'text' in viz_type_set:
+        out = out.union(set(['text','font','small_caps_scale','slant','shadow','shadow_color','color','word_wrap','align','one_sided']))
+    return out
+
 #################### Small build functions #########################
 
 def build_light(light, the_pivot):

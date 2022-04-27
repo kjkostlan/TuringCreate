@@ -12,9 +12,8 @@ from TapeyTeapots.meshops import quat34, primitives
 def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simple.
     q = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44 = quat34.qvfcyaTOcam44(q,[-5,0,0],f=2.0)
-    the_mesh = {'mesh':makeRandomMesh(),'mat44':np.identity(4), 'bearcubs':{}}
+    the_mesh = {**makeRandomMesh(),**{'mat44':np.identity(4), 'bearcubs':{}, 'viztype':'mesh'}}
     mat44_randmesh = np.identity(4); mat44_randmesh[3,0:3] = [1,1,1]
-    the_mesh_static = {'mesh':makeRandomMesh(),'mat44':mat44_randmesh, 'bearcubs':{}}
     render = {'mat44':np.identity(4),
               'bearcubs': {'the_mesh':the_mesh}}
     if not make_random_mesh:
@@ -30,7 +29,7 @@ def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simpl
         lights = [{'pos':[0,-32,0],'color':[1024,1024,1024,1]}]
     light_dict = {}
     for i in range(len(lights)):
-        light_dict[str(i)] = {'pos':lights[i]['pos'],'light':{'color':lights[i]['color']}}
+        light_dict[str(i)] = {'pos':lights[i]['pos'],'color':lights[i]['color'],'viztype':'light'}
     render['bearcubs']['lights'] = {'bearcubs':light_dict}
     return render
 
@@ -99,7 +98,7 @@ def everyFrame_default(app_state, mouse_state, key_state, mouse_clicks, key_clic
 def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z = 1, radius = 0.05):
     # Put these into ['bearcubs'] of the world.
     cube_mesh = primitives.cube(); cube_mesh['verts'] = cube_mesh['verts']*radius
-    obj = {'mat44': np.identity(4), 'mesh':cube_mesh}
+    obj = {'mat44': np.identity(4), **cube_mesh,'viztype':'mesh'}
     objs = {}
     for i in range(n_x):
         x = space_x*(i-(n_x-1)*0.5)
@@ -111,7 +110,7 @@ def make_cube_grid(n_x = 7, n_y = 7, n_z = 7, space_x = 1, space_y = 1, space_z 
                 obj1 = obj.copy(); obj1['mat44'] = m44
                 cols = np.ones([4,12]);
                 cols[0,:] = i/(n_x-0.999); cols[1,:] = j/(n_y-0.999); cols[2,:] = k/(n_z-0.999)
-                obj1 = c.assoc_in(obj1,['mesh','colors'],cols)
+                obj1 = c.assoc_in(obj1,['colors'],cols)
                 objs['cube_grid'+str(i)+'_'+str(j)+'_'+str(k)] = obj1
     return objs
 
@@ -226,7 +225,7 @@ def render_sync_demo():
         meshes = [primitives.cube(), primitives.sphere(resolution=8), primitives.cylinder(resolution=12),
                   primitives.cone(resolution=12), primitives.torus(resolution=8)]
         mesh = meshes[np.random.randint(len(meshes))]
-        new_obj = {'mesh':mesh,'mat44':rand_place44()}
+        new_obj = {**mesh,'mat44':rand_place44(), 'viztype':'mesh'}
         rand_k = str(np.random.random())
         return c.assoc_in(app_state,['bearcubs','shapes','bearcubs',rand_k], new_obj)
 
@@ -234,14 +233,14 @@ def render_sync_demo():
         text = {'text':'text'+str(np.random.randn()),'color':np.random.random(4)}
         text['color'][3] = text['color'][3]**0.25
         rand_k = str(np.random.random())
-        new_text = {'text':text,'mat44':rand_place44()}
+        new_text = {**text,'mat44':rand_place44(), 'viztype':'text'}
         return c.assoc_in(app_state,['bearcubs','texts','bearcubs',rand_k], new_text)
 
     def create_light_tweak(app_state):
         light = {'color':np.random.random(4)*40.0}
         light['color'][3] = 1.0
         rand_k = str(np.random.random())
-        lnode = {'light':light, 'pos':np.random.randn(3)*16}
+        lnode = {**light, 'pos':np.random.randn(3)*16, 'viztype':'light'}
         #new_light = {'light':light,'pos':np.random.randn(3)*4}
         return c.assoc_in(app_state,['bearcubs','lights','bearcubs',rand_k], lnode)
 
@@ -281,10 +280,10 @@ def render_sync_demo():
     def tweak_meshes(app_state):
         shapes = app_state['bearcubs'].get('shapes',{}).get('bearcubs',{})
         for k in list(shapes.keys()):
-            if 'mesh' in shapes[k]:
-                verts = shapes[k]['mesh']['verts']
+            if shapes[k]['viztype'] == 'mesh':
+                verts = shapes[k]['verts']
                 verts = verts+np.random.randn(*verts.shape)*0.1
-                shapes = c.assoc_in(shapes, [k, 'mesh', 'verts'], verts)
+                shapes = c.assoc_in(shapes, [k, 'verts'], verts)
         return c.assoc_in(app_state,['bearcubs', 'shapes', 'bearcubs'], shapes)
 
     def delete_obj_tweak(app_state, delete_these='mesh'):
@@ -357,7 +356,7 @@ def tree_demo():
         scale_factor = 0.5+0.25*np.random.randn()
         v = 1.0*np.random.randn(3); q = np.random.randn(4); q = q/np.linalg.norm(q)
         m44 = quat34.qrvTOm44(q,scale_factor*np.identity(3), v)
-        return {'mat44':m44,'mesh':make_mesh()}
+        return {'mat44':m44,**make_mesh(),'viztype':'mesh'}
 
     def select_random_path(sub_tree, path0=None):
         # Random path to an object in the tree.
@@ -374,7 +373,7 @@ def tree_demo():
         if len(kys) == 0:
             return path
         k = kys[np.random.randint(len(kys))]
-        if 'light' in k:
+        if 'light' in k: # Don't select lights.
             return path
         return select_random_path(sub_tree['bearcubs'][k], path+['bearcubs', k])
 
@@ -450,9 +449,9 @@ def tree_demo():
     init_state = {**init_state, **{'mat44':quat34.m33vTOm44(np.identity(3)*0.5),'bearcubs':init_objs}}
     def v2m44(v):
         return quat34.m33vTOm44(np.identity(3),v)
-    init_state['bearcubs']['light0'] = {'mat44':v2m44([64.0, 0.0, 0.0]),'light':{'color':[1024,512,256,1]}}
-    init_state['bearcubs']['light1'] = {'mat44':v2m44([0.0, 64.0, 0.0]),'light':{'color':[512,768,512,1]}}
-    init_state['bearcubs']['light2'] = {'mat44':v2m44([0.0, 0.0, 64.0]),'light':{'color':[256,256,1024,1]}}
+    init_state['bearcubs']['light0'] = {'mat44':v2m44([64.0, 0.0, 0.0]),'color':[1024,512,256,1],'viztype':'light'}
+    init_state['bearcubs']['light1'] = {'mat44':v2m44([0.0, 64.0, 0.0]),'color':[512,768,512,1],'viztype':'light'}
+    init_state['bearcubs']['light2'] = {'mat44':v2m44([0.0, 0.0, 64.0]),'color':[256,256,1024,1],'viztype':'light'}
 
     txt_lines = ['This demo tests updating a hierarchy.']
     txt_lines.append('Updates include moving branches around as well as changing the tree structure.')
@@ -481,7 +480,7 @@ def camera_demo():
     for i in range(3):
         txt_m44 = quat34.m33vTOm44(np.identity(3),txt_locations[i])
         txt_dict = {'text':txt_txt[i],'color':txt_colors[i,:]}
-        ob = {'text':txt_dict, 'mat44':txt_m44}
+        ob = {**txt_dict, 'mat44':txt_m44,'viztype':'text'}
         app_state = c.assoc_in(app_state,['bearcubs','text '+txt_txt[i]], ob)
 
     def every_frame_func(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
@@ -498,13 +497,13 @@ def camera_demo():
         corners = mark_corners(cam44, clip_z_value=63.0/64.0, margin_from_edge=0.05, relative_size = 0.1)
         cursor_screen = np.zeros([3,1]); cursor_screen[:,0] = [mouse_state['x'],mouse_state['y'],63.0/64.0]
         one_mesh_dict = mark_on_screen(cam44, cursor_screen, ['screen_mesh'], relative_size = 1.0/32.0)
-        objs['screen_mesh'] = {'mesh':one_mesh_dict['screen_mesh']}
+        objs['screen_mesh'] = {**one_mesh_dict['screen_mesh'],'viztype':'mesh'}
         stretch = app_state.get('stretch_to_screen',False)
         if 's' in key_clicks:
             stretch = not stretch
             app_state['stretch_to_screen'] = stretch
         for ck in corners.keys():
-            objs[ck] = {'mesh':corners[ck]}
+            objs[ck] = {**corners[ck],'viztype':'mesh'}
         app_state = c.assoc_in(app_state,['bearcubs'],objs)
         lines = ['Move the camera like Blender! The camera itself is a 4x4 matrix.']
         lines.append('The 4 "corner" spheres should stay fixed when the camera moves, and one sphere follows mouse.')

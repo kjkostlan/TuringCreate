@@ -34,14 +34,18 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
         new_render_branch = {}
     if old_render_branch is new_render_branch:
         return
-    old_mesh = old_render_branch.get('mesh', None)
-    new_mesh = new_render_branch.get('mesh', None)
 
-    old_text = old_render_branch.get('text', None)
-    new_text = new_render_branch.get('text', None)
+    # What types of objects do we have?
+    viz_type_old = old_render_branch.get('viztype',None)
+    viz_type_new = new_render_branch.get('viztype',None)
+    if type(viz_type_old) is not list and type(viz_type_old) is not tuple:
+        viz_type_old = [viz_type_old]
+    if type(viz_type_new) is not list and type(viz_type_new) is not tuple:
+        viz_type_new = [viz_type_new]
+    viz_type_old = set(viz_type_old); viz_type_new = set(viz_type_new)
+    viz_old_and_new_type = viz_type_old.union(viz_type_new)
 
-    old_light = old_render_branch.get('light',None)
-    new_light = new_render_branch.get('light',None)
+    #new_light = new_render_branch.get('light',None)
 
     mat44_this = np.identity(4)
     if 'mat44' in new_render_branch:
@@ -52,9 +56,18 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
     #mat44 = np.matmul(mat44_this, mat44_ancestors) # Wrong order.
     mat44 = np.matmul(mat44_ancestors, mat44_this)
 
-    change_mesh = old_mesh is not new_mesh
-    change_text = old_text is not new_text
-    change_light = old_light is not new_light
+    # Structural change check (i.e. it changes the structure of the mesh, etc)
+    relevant_keys = shapebuild.get_relevant_keys(viz_old_and_new_type)
+    all_keys = set(old_render_branch.keys()).union(new_render_branch.keys())
+    changed_keys = []
+    for ky in all_keys:
+        if old_render_branch.get(ky,None) is not new_render_branch.get(ky,None):
+            changed_keys.append(ky)
+    big_update = len(relevant_keys.intersection(set(changed_keys)))>0
+
+    change_mesh = 'mesh' in viz_old_and_new_type and big_update
+    change_text = 'text' in viz_old_and_new_type and big_update
+    change_light = 'light' in viz_old_and_new_type and big_update
     ident_m44 = np.identity(4)
     change_xform = False
     for k_o in ['mat44', 'pos']:
@@ -70,9 +83,8 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
         for mesh_obj in mesh_panda_objs:
             if mesh_obj is not None:
                 mesh_obj.removeNode()
-        if new_mesh is not None:
-            #myMesh = shapebuild.build_mesh('meshy',new_mesh)
-            mesh_panda_objs_new = shapebuild.build_mesh3('meshy', new_mesh)
+        if 'mesh' in viz_type_new:
+            mesh_panda_objs_new = shapebuild.build_mesh3('meshy', new_render_branch)
             for k in mesh_keys:
                 obj_new = mesh_panda_objs_new[k]
                 panda_objects_branch[k] = obj_new
@@ -94,21 +106,21 @@ def sync_renders(old_render_branch, new_render_branch, mat44_ancestors, panda_ob
     if change_text:
         if text_ob is not None:
             text_ob.removeNode()
-        if new_text is not None:
+        if 'text' in viz_type_new:
 
-            text_ob = shapebuild.build_text(new_text)
+            text_ob = shapebuild.build_text(new_render_branch)
             text_ob.reparent_to(pivot)
             panda_objects_branch['text'] = text_ob
-    if (change_text or change_xform) and (new_text is not None):
+    if (change_text or change_xform) and 'text' in viz_type_new:
         xform = shapebuild.build_mat44(mat44)
         text_ob.set_transform(xform)
 
     if change_light:
-        if new_light is not None:
-            modified_light_map['.'.join(path)] = new_light
+        if 'light' in viz_type_new:
+            modified_light_map['.'.join(path)] = new_render_branch
         else:
             modified_light_map['.'.join(path)] = None # Mark as deleted.
-    if (change_xform or change_light) and new_light is not None: # Update light poistion this-level.
+    if (change_xform or change_light) and 'light' in viz_type_new: # Update light poistion this-level.
         _mutate2(modified_light_map, '.'.join(path), 'mat44', mat44)
     bearcubs_old = old_render_branch.get('bearcubs', {})
     bearcubs_new = new_render_branch.get('bearcubs', {})
