@@ -196,3 +196,11 @@ def empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks
      app_state = c.assoc(app_state,'nav3D_cam',app_state.get('nav3D_cam',default_3D()))
      app_state['camera'] = {'mat44':nav_to_camera(app_state['nav3D_cam'])}
      return app_state
+
+def blender_cam_every_frame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, include_oddballs=False):
+    f_camstate_deltax_deltay = blender_fn(mouse_state, key_state, include_oddballs=include_oddballs)
+    if f_camstate_deltax_deltay is not None and 'nav3D_cam' in app_state:
+        app_state = apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay)
+    else:
+        app_state = empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+    return app_state
