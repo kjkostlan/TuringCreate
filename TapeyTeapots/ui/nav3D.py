@@ -151,8 +151,12 @@ def shear_far_clipplane(opts_3D, delta_x, delta_y):
 
 ############################## Combining fns ################################
 
-def apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay):
+def apply_mouse_camera_fn(app_state, inputs, f_camstate_deltax_deltay):
     # Applies one of the "mouse drag" functions. drag_only can specify a mouse button or be any button.
+    if 'x' in inputs:
+        mouse_state = inputs
+    else:
+        mouse_state = inputs['mouse']
     delta_x = mouse_state['x']-mouse_state['x_old']
     delta_y = mouse_state['y']-mouse_state['y_old']
     app_state = app_state.copy()
@@ -162,8 +166,9 @@ def apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay):
     app_state['camera'] = {'mat44':nav_to_camera(app_state['nav3D_cam'])}
     return app_state
 
-def blender_fn(mouse_state, key_state, include_oddballs=False):
+def blender_fn(inputs, include_oddballs=False):
     # Maps blender's default navigation mouse and hotkeys to fns.
+    mouse_state = inputs['mouse']; key_state = inputs['keyboard']
     if mouse_state['scroll_old'] is not None and mouse_state['scroll'] is not None:
         if mouse_state['scroll_old'] != mouse_state['scroll']: # Scroll wheel: Zoom (by moving camera).
             key_state = key_state.copy()
@@ -192,15 +197,15 @@ def blender_fn(mouse_state, key_state, include_oddballs=False):
 
 #############################################################################
 
-def empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+def empty_everyframe(app_state, inputs):
      app_state = c.assoc(app_state,'nav3D_cam',app_state.get('nav3D_cam',default_3D()))
      app_state['camera'] = {'mat44':nav_to_camera(app_state['nav3D_cam'])}
      return app_state
 
-def blender_cam_every_frame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, include_oddballs=False):
-    f_camstate_deltax_deltay = blender_fn(mouse_state, key_state, include_oddballs=include_oddballs)
+def blender_cam_every_frame(app_state, inputs, include_oddballs=False):
+    f_camstate_deltax_deltay = blender_fn(inputs, include_oddballs=include_oddballs)
     if f_camstate_deltax_deltay is not None and 'nav3D_cam' in app_state:
-        app_state = apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay)
+        app_state = apply_mouse_camera_fn(app_state, inputs, f_camstate_deltax_deltay)
     else:
-        app_state = empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+        app_state = empty_everyframe(app_state, inputs)
     return app_state

@@ -71,7 +71,8 @@ class App:
 
         try:
             mouse_clicks, key_clicks = mousekey.convert_mouse_and_key(self.is_mouse_clicks, self.is_key_clicks)
-            appstate1 = self.every_frame_fn(self.appstate, self.mouse_state, self.key_state, mouse_clicks, key_clicks, self.screen_state)
+            ui = {'mouse':self.mouse_state,'keyboard':self.key_state,'click':mouse_clicks,'type':key_clicks, 'screen':self.screen_state}
+            appstate1 = self.every_frame_fn(self.appstate, ui)
         except Exception:
             print('Every Frame Error:')
             print(traceback.format_exc())

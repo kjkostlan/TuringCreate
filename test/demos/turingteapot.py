@@ -8,6 +8,7 @@ import c
 import TapeyTeapots.pandawrapper as panda3dsetup
 import TapeyTeapots.ui.nav3D as nav3D
 from TapeyTeapots.meshops import quat34, primitives
+from TapeyTeapots.ui import uicore
 
 def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simple.
     q = quat34.q_from_polarshift([0,0,-1],[1,0,0])
@@ -67,7 +68,9 @@ def make_random_text(prepend='RAND'):
     out['text'] = str(prepend)+str(np.random.random())+str('OM')
     return out
 
-def print_inputs(mouse_state, key_state, mouse_clicks, key_clicks): # Debug.
+def print_inputs(inputs): # Debug.
+    mouse_state = inputs['mouse']; key_state = inputs['keyboard']
+    mouse_clicks = inputs['click']; key_clicks = inputs['type']
     for k in mouse_state.keys():
         if mouse_state[k]:
             if k=='x' or k=='y' or k=='x_old' or k=='y_old':
@@ -90,7 +93,7 @@ def print_inputs(mouse_state, key_state, mouse_clicks, key_clicks): # Debug.
         if key_clicks[k]:
             print('kclick:',k)
 
-def everyFrame_default(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+def everyFrame_default(app_state, inputs):
     app_state = app_state.copy()
     app_state['nframe'] = app_state.get('nframe',0)+1
     return app_state
@@ -140,7 +143,7 @@ def mark_corners(cam44, clip_z_value=0.0, margin_from_edge=0.05, relative_size =
     names = ['corner_sphere'+str(i) for i in range(4)]
     return mark_on_screen(cam44, four_corners, names, relative_size = relative_size)
 
-def sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines, packs):
+def sequential_task_everyframe(app_state, inputs, txt_lines, packs):
     if app_state['frames_left'] <= 0: # Move on to next task.
         app_state = app_state.copy()
         app_state['current_task'] = (app_state['current_task']+1)%len(packs)
@@ -173,39 +176,42 @@ def mouse_key_input_demo():
     txt_lines.append('It should treat normal and special keys the same.')
     txt_lines.append('Finally, it should respond to resizing the screen.')
 
-    def every_frame(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+    def every_frame(app_state, inputs):
+        mouse_state = inputs['mouse']; key_state = inputs['keyboard']
+        mouse_clicks = inputs['click']; key_clicks = inputs['type']
+        screen_state = inputs['screen']
         txt_lines1 = txt_lines.copy()
         keys_pressed = []
         for k,v in key_state.items():
             if v:
                 keys_pressed.append(k)
-        txt_lines1.append('Keys down: '+' '.join(keys_pressed))
+        txt_lines1.append('"keyboard": '+' '.join(keys_pressed))
         mouse_pressed = []
         for i in range(16):
             if i in mouse_state and mouse_state[i]:
                 mouse_pressed.append(str(i))
-        txt_lines1.append('Mouse buttons down: '+' '.join(mouse_pressed))
-        mouse_string = 'Mouse: '
+        txt_lines1.append('"mouse": '+' '.join(mouse_pressed))
+        mouse_string = ''
         for k in ['x_old','x','y_old','y','scroll_old','scroll']:
             mouse_string = mouse_string+k+'='+'{:.3f}'.format(mouse_state[k])+' '
+        if mouse_state['scroll_old'] != mouse_state['scroll']:
+            txt_lines1.append('Wheel just scrolled')
         txt_lines1.append(mouse_string)
-        txt_lines1.append('Screen state: '+str(screen_state))
+        txt_lines1.append('"screen": '+str(screen_state))
         throttle = app_state.get('fps_throttle', False)
         if throttle:
             time.sleep(0.5)
         if 'tab' in key_clicks:
             throttle = not throttle
         app_state['fps_throttle'] = throttle
-        throttle_text = 'Tab to enable lag'
+        throttle_text = 'Tab to enable 500ms lag'
         if throttle:
             throttle_text = 'LAG ON: Tab to disable lag'
         txt_lines1.append(throttle_text)
         if len(mouse_clicks)>0:
-            txt_lines1.append('Mouse(s) just clicked (a set):'+str(mouse_clicks))
+            txt_lines1.append('"click":'+str(mouse_clicks))
         if len(key_clicks)>0:
-            txt_lines1.append('Key(s) just clicked (a set):'+str(key_clicks))
-        if mouse_state['scroll_old'] != mouse_state['scroll']:
-            txt_lines1.append('Wheel just scrolled')
+            txt_lines1.append('"type":'+str(key_clicks))
         txt = '\n'.join(txt_lines1)
         return c.assoc_in(app_state, ['onscreen_text','text'],txt)
     scene0 = {'camera':{'mat44':np.identity(4)}}
@@ -331,12 +337,12 @@ def render_sync_demo():
     txt_lines.append("SceneSync looks for changes using python's 'is'\nand will not detect inplace modification:")
     txt_lines.append("To make a change, don't mutate the app_state.\nInstead copy-on-modify while miminizing defensive copying using shallow copies when possible.")
 
-    def _everyFrame_fn(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
-        return sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines=txt_lines, packs=packs)
+    def _everyFrame_fn(app_state, inputs):
+        return sequential_task_everyframe(app_state, inputs, txt_lines=txt_lines, packs=packs)
 
     pre_run_frames = 0
     for i in range(pre_run_frames):
-        init_state = _everyFrame_fn(init_state, None, None, None, None, None)
+        init_state = _everyFrame_fn(init_state, inputs)
 
     x = panda3dsetup.App(init_state, _everyFrame_fn)
 
@@ -364,7 +370,12 @@ def tree_demo():
             path = path0
         else:
             path = []
-        stop_chance = 0.333
+        if len(path) == 0:
+            stop_chance = 0.0625
+        elif len(path) == 1:
+            stop_chance = 0.6
+        else:
+            stop_chance = 0.333
         if np.random.random()<=stop_chance or 'bearcubs' not in sub_tree:
             return path
         if sub_tree['bearcubs'] is None:
@@ -458,8 +469,8 @@ def tree_demo():
     txt_lines.append('When a branch is moved, all branches below it should move accordingly.')
     txt_lines.append('It can be hard to tell what branches belong to what; the tree starts with 1 level only.')
 
-    def _everyFrame_fn(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
-        return sequential_task_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state, txt_lines=txt_lines, packs=packs)
+    def _everyFrame_fn(app_state, inputs):
+        return sequential_task_everyframe(app_state, inputs, txt_lines=txt_lines, packs=packs)
 
     x = panda3dsetup.App(init_state, _everyFrame_fn)
 
@@ -483,15 +494,15 @@ def camera_demo():
         ob = {**txt_dict, 'mat44':txt_m44,'viztype':'text'}
         app_state = c.assoc_in(app_state,['bearcubs','text '+txt_txt[i]], ob)
 
-    def every_frame_func(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+    def every_frame_func(app_state, inputs):
+        mouse_state = inputs['mouse']; key_state = inputs['keyboard']
+        key_clicks = inputs['type']
+        screen_state = inputs['screen']
         app_state = app_state.copy()
         if key_state['escape']:
-            app_state = nav3D.apply_mouse_camera_fn(app_state, mouse_state, nav3D.reset)
-        f_camstate_deltax_deltay = nav3D.blender_fn(mouse_state, key_state, include_oddballs=True)
-        if f_camstate_deltax_deltay is not None and 'nav3D_cam' in app_state:
-            app_state = nav3D.apply_mouse_camera_fn(app_state, mouse_state, f_camstate_deltax_deltay)
-        else:
-            app_state = nav3D.empty_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+            app_state = nav3D.apply_mouse_camera_fn(app_state, inputs, nav3D.reset)
+        f_camstate_deltax_deltay = nav3D.blender_fn(inputs, include_oddballs=True)
+        app_state = nav3D.blender_cam_every_frame(app_state, inputs, include_oddballs=True)
         cam44 = app_state['camera']['mat44']
         objs = app_state['bearcubs'].copy()
         corners = mark_corners(cam44, clip_z_value=63.0/64.0, margin_from_edge=0.05, relative_size = 0.1)
@@ -552,3 +563,22 @@ def camera_demo():
         return app_state
 
     x = panda3dsetup.App(app_state, every_frame_func, panda_config={'view-frustum-cull':0})
+
+def ui_demo():
+    app_state = simple_init_state(make_random_mesh=False); app_state['show_fps'] = True
+    txt = 'Shows buttons, sliders, and textfields (TODO get this demo working).\nBlender camera controls.'
+    app_state['onscreen_text'] = {'xy':[-1.325,0.9],'align':'left','text':txt}
+    cube = {**primitives.cube(), **{'viztype':'mesh'}}
+    def ui_fn(branch, inputs):
+        m44 = np.copy(branch.get('mat44', np.identity(4)))
+        m44[0,3] = m44[0,3] + 1
+        return c.assoc(branch,'mat44',m44)
+    cube['UI'] = {'click_lev-0':ui_fn}
+
+    app_state = c.assoc_in(app_state, ['bearcubs','cube_button'], cube)
+    def every_frame_func(app_state, inputs):
+        app_state = nav3D.blender_cam_every_frame(app_state, inputs)
+        app_state = uicore.global_everyframe(app_state, inputs)
+        return app_state
+
+    x = panda3dsetup.App(app_state, every_frame_func)

@@ -11,13 +11,13 @@ import c
 import TapeyTeapots.meshops.quat34 as quat34
 
 # TODO: hitboxes.
-def get_fnlevs(ui, current_lev, mouse_state, key_state, mouse_clicks, key_clicks):
+def get_fnlevs(ui, current_lev, inputs):
     # Returns [[f, lev],[f, lev],...] pairs of functions and the levels they operate on.
     # Errors are thrown if the requested level does not match.
     # A 'click' will trigger iff mouse_clicks has anything, etc.
     pairs = []
     kys = list(ui.keys()); kys.sort()
-    active_kys = {'click':len(mouse_clicks)>0,'type':len(key_clicks)>0}
+    active_kys = {'click':len(inputs['click'])>0,'type':len(inputs['type'])>0}
     for k in kys:
         pieces = k.split('_'); pieces.append('lev-0')
         type = pieces[0];
@@ -38,16 +38,16 @@ def cam_ray(app_state, mouse_state):
     pos_world_far = quat34.cam44_invv(cam44, cursor_screen)[:,0]
     return pos_world_near, pos_world_far
 
-def _walk_everyframe(branch_old, app_state_new, path, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
+def _walk_everyframe(branch_old, app_state_new, path, inputs):
     # The path is the path in app_state_old.
     if 'UI' in branch_old:
-        fn_levs = get_fnlevs(branch_old['UI'], len(path), mouse_state, key_state, mouse_clicks, key_clicks)
+        fn_levs = get_fnlevs(branch_old['UI'], len(path), inputs)
         not_clobbered = c.get_in(app_state_new, path, not_found=None) is not None # An earlier UI function may have clobbered us, making our actions moot.
         if len(fn_levs) > 0 and not_clobbered:
             for flv in fn_levs:
                 f = flv[0]; lv = flv[1]
                 piece = c.get_in(app_state_new, path[0:lv])
-                piece_new = f(piece, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+                piece_new = f(piece, inputs)
                 if type(piece_new) is not dict:
                     raise Exception('the function did not return a dict.')
                 app_state_new = c.assoc_in(app_state_new, path[0:lv], piece_new)
@@ -55,12 +55,12 @@ def _walk_everyframe(branch_old, app_state_new, path, mouse_state, key_state, mo
         for k in branch_old['bearcubs'].keys():
             path1 = path + ['bearcubs', k]
             branch_old1 = branch_old['bearcubs'][k]
-            app_state_new = _walk_everyframe(branch_old1, app_state_new, path1, mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+            app_state_new = _walk_everyframe(branch_old1, app_state_new, path1, inputs)
     return app_state_new
 
-def global_everyframe(app_state, mouse_state, key_state, mouse_clicks, key_clicks, screen_state):
-    any_mouse_or_key = len(mouse_clicks) + len(key_clicks) > 0
-    click_near, click_far = cam_ray(app_state, mouse_state) # TODO: use this for hitboxes.
+def global_everyframe(app_state, inputs):
+    any_mouse_or_key = len(inputs['click']) + len(inputs['type']) > 0
+    click_near, click_far = cam_ray(app_state, inputs['mouse']) # TODO: use this for hitboxes.
     if not any_mouse_or_key: # Optimization: avoid walking through the tree every frame.
         return app_state
-    return _walk_everyframe(app_state, app_state, [], mouse_state, key_state, mouse_clicks, key_clicks, screen_state)
+    return _walk_everyframe(app_state, app_state, [], inputs)
