@@ -92,6 +92,7 @@ def line_line_closest(origin, direction, query_origin_3xn, query_direction_3xn):
     return [P1+t1*V1, P2+t2*V2]
 
 def line_plane_intersection(plane_origin, plane_normal, query_origin_3xn, query_direction_3xn):
+    # If the line is parallel to the plane the intersection point will be very far away.
     plane_normal = plane_normal/np.linalg.norm(plane_normal+1e-100)
     dots = np.sum((query_origin_3xn-np.expand_dims(plane_origin,1))*np.expand_dims(plane_normal,1),axis=0)
     slopes = np.sum(query_direction_3xn*np.expand_dims(plane_normal,1), axis=0)

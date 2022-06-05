@@ -51,12 +51,14 @@ def volume(mesh, origin=None, normal=None, signed=True):
 def is_inside_mesh(mesh,query_3xn, ray_direction3xn=None, relative_tol=0.0001):
     # For non-watertight meshes, the ray direction will matter.
     # Faces are oriented.
-    if ray_direction is None:
+    if ray_direction3xn is None:
         ray_direction3xn = [1.0,1.0,1.0]
     ray_direction3xn = _expand1(ray_direction3xn)
 
     # Find the barycentric coords of line-plane intersection:
     n = query_3xn.shape[1]; nVert = mesh['verts'].shape[1]; nFace = mesh['faces'].shape[1]
+    if ray_direction3xn.shape[1] == 1:
+        ray_direction3xn = np.tile(ray_direction3xn, [1,n])
     closest_distance = 1e100*np.ones(n) # Closest intersection to plane facing the right way.
     closest_is_inside = np.zeros(n)
     for i in range(nFace):
@@ -70,12 +72,39 @@ def is_inside_mesh(mesh,query_3xn, ray_direction3xn=None, relative_tol=0.0001):
         in_range0 = (baryxyzw[0,:] > -relative_tol) * (baryxyzw[1,:] > -relative_tol) * (baryxyzw[2,:] > -relative_tol)
         in_range1 = (baryxyzw[0,:] < 1+relative_tol) * (baryxyzw[1,:] < 1+relative_tol) * (baryxyzw[2,:] < 1+relative_tol)
         inside_of_face = np.einsum('j,ji->i',outward_normal, ray_direction3xn) > 0
-        distances = np.einsum('ji,ji->i',ray_directions3xn,intersections-query_3xn) # Dot product.
+        distances = np.einsum('ji,ji->i',ray_direction3xn,intersections-query_3xn) # Dot product.
         record_set = (closest_distance<distances)*in_range0*in_range1
+
         closest_is_inside[record_set>0.5] = inside_of_face[record_set>0.5]
         closest_distance = np.minimum(closest_distance,distances)
 
     return closest_is_inside
+
+def raycast_distance(mesh, ray_origin3xn, ray_direction3xn, relative_tol=0.0001, allow_negative=False):
+    # Gets the collision distances, with >1e100 meaning no collision.
+    verts = mesh['verts']; nVert = verts.shape[1]
+    faces = mesh['faces']; nFace = faces.shape[1]
+
+    norm = np.sqrt(np.sum(ray_direction3xn*ray_direction3xn,axis=0))
+    ray_direction3xn = ray_direction3xn/np.expand_dims(norm+1e-100,axis=0)
+
+    out = 1e101*np.ones(ray_origin3xn.shape[1])
+    for i in range(nFace):
+        tri3 = verts[:,faces[:,i]]
+        plane_origin = tri3[:,0]
+        plane_normal = np.cross(tri3[:,1]-tri3[:,0], tri3[:,2]-tri3[:,0])
+        intersect3xn = coregeom.line_plane_intersection(plane_origin, plane_normal, ray_origin3xn, ray_direction3xn)
+        bary4xn = coregeom.barycentric(tri3, intersect3xn)
+
+        collision = (bary4xn[0,:]<=1.0+relative_tol)*(bary4xn[1,:]<=1.0+relative_tol)*(bary4xn[2,:]<=1.0+relative_tol)
+        distances = np.sum((intersect3xn-ray_origin3xn)*ray_direction3xn,axis=0)
+        if not allow_negative:
+            distances[distances<0] = 1e200
+            out[collision>0.5] = np.minimum(distances[collision>0.5],out[collision>0.5])
+        else: # This code also works for positive, so the if statement is not strictly necessary.
+            record_set = (collision>0.5)*(np.abs(distances)<np.abs(out))
+            out[record_set>0.5] = distances[record_set>0.5]
+    return out
 
 def project_to_each_triangle(mesh, query_3xn):
     # Returns projected_pointss, distances

@@ -249,3 +249,51 @@ def test_add_points():
     tests.append(tmetric.approx_eq(trimesh.volume(mesh1),trimesh.volume(cube)))
 
     return tmetric.is_all_true(tests)
+
+def test_raycast():
+    tests = []
+    np.random.seed(555)
+
+    # Cube 6 orthogonal directions:
+    def rand_05():
+        return 0.5*np.random.random()-0.5
+    cube = primitives.cube()
+    origin = np.zeros([3,6]); ray = np.zeros([3,6])
+    origin[:,0] = [rand_05(),rand_05(),3]; ray[:,0] = [0,0,-1]
+    origin[:,1] = [rand_05(),rand_05(),-3]; ray[:,1] = [0,0,2.0+rand_05()]
+    origin[:,2] = [rand_05(),-3,rand_05()]; ray[:,2] = [0,1,0]
+    origin[:,3] = [rand_05(),3,rand_05()]; ray[:,3] = [0,-1,0]
+    origin[:,4] = [3,rand_05(),rand_05()]; ray[:,4] = [-1,0,0]
+    origin[:,5] = [-3,rand_05(),rand_05()]; ray[:,5] = [1,0,0]
+    hit = trimesh.raycast_distance(cube, origin, ray, relative_tol=0.0001)
+    tests.append(tmetric.approx_eq(hit,[2,2,2,2,2,2]))
+
+    # Cube 6 orthogonal wrong directions:
+    origin = np.zeros([3,6]); ray = np.zeros([3,6])
+    origin[:,0] = [rand_05(),rand_05(),3]; ray[:,0] = [0,0,1]
+    origin[:,1] = [rand_05(),rand_05(),-3]; ray[:,1] = [0,0,-2.0-rand_05()]
+    origin[:,2] = [rand_05(),-3,rand_05()]; ray[:,2] = [0,-1,0]
+    origin[:,3] = [rand_05(),3,rand_05()]; ray[:,3] = [0,1,0]
+    origin[:,4] = [3,rand_05(),rand_05()]; ray[:,4] = [1,0,0]
+    origin[:,5] = [-3,rand_05(),rand_05()]; ray[:,5] = [-1,0,0]
+    hit = trimesh.raycast_distance(cube, origin, ray)
+    hit_neg = trimesh.raycast_distance(cube, origin, ray, allow_negative=True)
+    tests.append(np.min(hit)>1e10)
+    tests.append(tmetric.approx_eq(hit_neg,[-2,-2,-2,-2,-2,-2]))
+
+    # Randomly perturbed mesh and are points inside:
+    sphere = primitives.sphere(resolution=12)
+    sphere['verts'] = sphere['verts'] + 0.125*(0.5*np.random.random(sphere['verts'].shape)-0.5)
+    ray_origin = np.random.randn(3,16)
+    norm = np.sqrt(np.sum(ray_origin*ray_origin,axis=0))
+    ray_origin = 4*ray_origin/np.expand_dims(norm+1e-100,axis=0) # The 8 makes sure the points are well outside.
+    ray_direction = -ray_origin + 0.25*np.random.randn(3,16) # Mostly back to center.
+    hit_dist = trimesh.raycast_distance(sphere, ray_origin, ray_direction, relative_tol=1e-10)
+    norm = np.sqrt(np.sum(ray_direction*ray_direction,axis=0))
+    ray_direction = ray_direction/np.expand_dims(norm+1e-100,axis=0)
+    just_outside = ray_origin + 0.9999*np.expand_dims(hit_dist,axis=0)*ray_direction
+    just_inside = ray_origin + 1.0001*np.expand_dims(hit_dist,axis=0)*ray_direction
+    is_inside0 = trimesh.is_inside_mesh(sphere, just_outside, relative_tol=1e-10)
+    is_inside1 = trimesh.is_inside_mesh(sphere, just_inside, relative_tol=1e-10)
+
+    return tmetric.is_all_true(tests)
