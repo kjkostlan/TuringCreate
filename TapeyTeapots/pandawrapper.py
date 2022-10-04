@@ -9,7 +9,7 @@ from direct.filter.CommonFilters import CommonFilters
 from panda3d.core import ConfigVariableString
 
 import time
-from TapeyTeapots.yuckymutate import scenesync, mousekey
+from TapeyTeapots.yuckymutate import scenesync, mousekey, skybox
 import reload
 import numpy as np
 
@@ -64,6 +64,9 @@ class App:
                 #print('Value we will use: ', var_ob.getValue())
             if log is not None:
                 log.append(['setup_config', self, None, panda_config])
+
+        # Tmp skybox for now:
+        skybox.set_up_gradient_skybox(self.pivot, showbase)
 
         # https://discourse.panda3d.org/t/userexit-without-kill-the-python-interpreter/10683
         try:
