@@ -27,6 +27,10 @@ def _nonfalse(x): # There is probably an easier way.
 
 if __name__ == "__main__":
     print('Turing create launched...')
+    module_list_demos = ['test.demos.pythonpixels', 'test.demos.turingteapot']
+    module_list_auto = ['test.auto.tnomutate', 'test.auto.tgeom', 'test.auto.tmesh',
+                        'test.auto.tquat43', 'test.auto.tscenesync']#, 'test.auto.twigit', 'test.auto.tui']
+
     while True:
         for i in range(4):
             print('')
@@ -40,26 +44,26 @@ if __name__ == "__main__":
             if x=='h':
                 print('"t" to run all unit tests ("t r" to repeat), "d" to list demos, "d 123" to run the 123\'rd demo, "e xyz" to eval xyz, q to quit.')
             elif x=='t':
-                tests.report_broken()
+                tests.report_broken(module_list_auto)
             elif x=='t r':
-                tests.broken_record()
+                tests.broken_record(module_list_auto)
             elif x[0]=='d':
                 pieces = x.split(' ')
-                module_dict = dict(zip(range(len(tests.module_list_demos)), tests.module_list_demos))
+                module_dict = dict(zip(range(len(module_list_demos)), module_list_demos))
                 if len(pieces) == 1:
                     print('Demo modules:\n')
                     print(module_dict)
                 elif len(pieces) == 2: # Module specified, list fns within module.
                     k1 = _k_or_v2k(module_dict, _to_int(pieces[1]))
                     if _nonfalse(k1):
-                        fname2int, fn_name2obj = tests.list_demos(module_dict[k1])
+                        fname2int, fn_name2obj = tests.list_demos(module_list_demos, module_dict[k1])
                         print('Demos within module: '+module_dict[k1]+'\n',fname2int)
                     else:
                         print('Unrecognized module or out-of-bounds int ix:',pieces[1])
                 elif len(pieces) == 3: # Run the function.
                     k = _k_or_v2k(module_dict, _to_int(pieces[1]))
                     if _nonfalse(k):
-                        fname2int, fn_name2obj = tests.list_demos(module_dict[k])
+                        fname2int, fn_name2obj = tests.list_demos(module_list_demos, module_dict[k])
                         k1 = _k_or_v2k(fname2int, _to_int(pieces[2]))
                         if _nonfalse(k1):
                             f_obj = fn_name2obj[fname2int[k1]]

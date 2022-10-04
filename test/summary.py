@@ -3,9 +3,6 @@
 import importlib, inspect, traceback, time
 import reload
 
-module_list_demos = ['test.demos.pythonpixels', 'test.demos.turingteapot']
-module_list_auto = ['test.auto.tnomutate', 'test.auto.tgeom', 'test.auto.tmesh', 'test.auto.tquat43']
-
 def _mergedicts(dict_list):
     out = {}
     for d in dict_list:
@@ -36,7 +33,7 @@ def run_f_catch_err(f_obj, print_reports=True):
             traceback.print_exc()
     return result
 
-def report_broken(print_reports = True):
+def report_broken(module_list_auto, print_reports = True):
     # Automatic tests the compute can tell if it works or not.
     #method_strings = _vcat([_list_methods_strings(m) for m in module_list_auto])
     auto_fnss = [_module_to_method_objs(m_string) for m_string in module_list_auto]
@@ -58,7 +55,7 @@ def report_broken(print_reports = True):
             print('all', len(fn_name2obj), 'tests passed!')
     return failures
 
-def broken_record(delay_seconds = 1.0, empty_lines = 6):
+def broken_record(module_list_auto, delay_seconds = 1.0, empty_lines = 6):
     # Keeps running the broken tests, waiting delay_seconds every loop.
     # It only reruns the tests broken on the first run.
     # Use while working on a test to avoid having to constantly run the test.
@@ -85,7 +82,7 @@ def broken_record(delay_seconds = 1.0, empty_lines = 6):
             break
         time.sleep(delay_seconds)
 
-def list_demos(m_string=None, strip_module_name=True):
+def list_demos(module_list_demos, m_string=None, strip_module_name=True):
     # Map from fname to fn.
     if m_string is not None:
         f_name2obj = _module_to_method_objs(m_string)
