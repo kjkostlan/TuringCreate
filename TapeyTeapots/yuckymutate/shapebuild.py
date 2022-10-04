@@ -162,6 +162,9 @@ def build_mesh(name, mesh):
     nodey = NodePath(node)
     return nodey
 
+def mesh3_keys():
+    return ['point_mesh', 'edge_mesh', 'face_mesh']
+
 def build_mesh3(name, mesh):
     # Returns meshes that show what is selected. Some or all returned meshes may be None.
     # The point and line meshes show what is selected.
