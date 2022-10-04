@@ -133,7 +133,7 @@ def q33TOq(q33):
     #      sin(acos(x)/2) = sqrt(1-x)/sqrt(2)
     real = np.sqrt(max(0.0, cos_theta+1.0))/np.sqrt(2.0) # Rounding errors may push cos_theta beyond 1.
     imag = np.sqrt(max(0.0, 1.0-cos_theta))/np.sqrt(2.0)*axis
-    
+
     # Sign calculation: whichever one makes the best conversion matrix:
     q = np.asarray([real, imag[0], imag[1], imag[2]])
     q1 = np.asarray([-real, imag[0], imag[1], imag[2]])
@@ -173,7 +173,7 @@ def qTOaxisangle(q):
     q = q1(q)
     imag = q[1:]
     half_s = np.linalg.norm(imag)
-    radians = 2.0*np.arcsin(min(half_s, 1.0)) 
+    radians = 2.0*np.arcsin(min(half_s, 1.0))
     axis = _v1(imag)
     if q[0] < 0.0:
         radians = -radians
@@ -454,7 +454,7 @@ def camq_from_look(look, up=None):
     q = q33TOq(q33)
     return q
 
-def cam_fron_look(v, look, up=None, f=1.0, c0=1.0/128, c1 = 1024):
+def cam_from_look(v, look, up=None, f=1.0, c0=1.0/128, c1 = 1024):
     # Convience function.
     q = camq_from_look(look, up=up)
     return qvfcyaTOcam44(q,v,f=f,c=[c0, c1])
@@ -475,4 +475,3 @@ def cam_from_ortho(v, q, zoom_out=1.0, far_clip=1024.0):
     cam44[0:3,3] = -offset
     #print('matmul test:',np.matmul(cam44, [go_to_zero[0],go_to_zero[1],go_to_zero[2],1.0]))
     return cam44
-
