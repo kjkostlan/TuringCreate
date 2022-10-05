@@ -263,42 +263,6 @@ def sync_camera(log, cam44_old, cam44, cam_obj, screen_state, stretch=False):
     if setPos:
         logged_fn_call(log, 'cam_obj.setPos', cam_obj, cam_obj.setPos, v0[0],v0[1],v0[2])
 
-
-    return
-
-
-    manual_fov_and_q = True # Lighting has a bug when this is disabled.
-
-    # The default camera points in the +y direction, while our ident q points in the -z direction:
-    q = [np.sqrt(0.5),np.sqrt(0.5),0,0]; v = [0,0,0]
-    lens = base.camLens;
-    if manual_fov_and_q:
-        q_unused,v_unused,f,cl,_,_ = quat34.cam44TOqvfcya(cam44)
-    else:
-        f = 1.0; cl = [0.01, 100]
-
-    w = screen_state[0]; h = screen_state[1]
-    theta = 2.0*np.arctan(1.0/f)*180.0/np.pi
-    fov_xy = [theta, theta]
-    if not stretch:
-        f1 = f*min(h,w)/max(h,w)
-        theta1 = theta1 = 2.0*np.arctan(1.0/f1)*180.0/np.pi
-        if w<=h:
-            fov_xy = [theta,theta1]
-        else:
-            fov_xy = [theta1,theta]
-    logged_fn_call(log, 'lens.setFov', lens, lens.setFov, fov_xy[0], fov_xy[1])
-
-    logged_fn_call(log, 'lens.setNearFar', lens, lens.setNearFar, cl[0], cl[1])
-    cam44_panda = quat34.qvfcyaTOcam44(q, v, f, cl)
-
-    cam_xform = np.matmul(np.linalg.inv(cam44),cam44_panda)
-    if cam_xform[3,3]<0: # Sign fix.
-        cam_xform = -cam_xform
-
-    xform_obj = logged_fn_call(log, 'shapebuild.build_mat44', shapebuild, shapebuild.build_mat44, cam_xform)
-    logged_fn_call(log, 'cam_obj.set_transform', cam_obj, cam_obj.set_transform, xform_obj)
-
 def sync_onscreen_text(log, panda_objects, old_state, new_state):
     # Onscreen text is a very system system that does not care about the camera, etc.
     old_text = old_state.get('onscreen_text',None)
