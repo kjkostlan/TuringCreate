@@ -13,7 +13,7 @@ from TapeyTeapots.ui import uicore
 def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simple.
     q = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44 = quat34.qvfcyaTOcam44(q,[-5,0,0],f=2.0)
-    the_mesh = {**makeRandomMesh(),**{'mat44':np.identity(4), 'bearcubs':{}, 'viztype':'mesh'}}
+    the_mesh = random_mesh_node()
     mat44_randmesh = np.identity(4); mat44_randmesh[3,0:3] = [1,1,1]
     render = {'mat44':np.identity(4),
               'bearcubs': {'the_mesh':the_mesh}}
@@ -32,9 +32,10 @@ def simple_init_state(colored_lights=True, make_random_mesh=True): # Start simpl
     for i in range(len(lights)):
         light_dict[str(i)] = {'pos':lights[i]['pos'],'color':lights[i]['color'],'viztype':'light'}
     render['bearcubs']['lights'] = {'bearcubs':light_dict}
+    render['camera'] = {'mat44':np.identity(4)}
     return render
 
-def makeRandomMesh(nVert=None, nFace=None):
+def random_mesh_node(nVert=None, nFace=None, mat44=None):
     if nVert is None:
         nVert = int(np.random.random()*128)+3
     if nFace is None:
@@ -61,6 +62,9 @@ def makeRandomMesh(nVert=None, nFace=None):
     if do_sel_faces:
         out['is_face_selected'] = np.random.random([nFace])*0.7
 
+    if mat44 is not None:
+        out['mat44'] = mat44
+    out['viztype'] = 'mesh'
     return out
 
 def make_random_text(prepend='RAND'):
@@ -565,9 +569,19 @@ def camera_demo():
     x = panda3dsetup.App(app_state, every_frame_func, panda_config={'view-frustum-cull':0})
 
 def ui_demo():
+    # A simple UI.
     app_state = simple_init_state(make_random_mesh=False); app_state['show_fps'] = True
     txt = 'Shows buttons, sliders, and textfields (TODO get this demo working).\nBlender camera controls.'
     app_state['onscreen_text'] = {'xy':[-1.325,0.9],'align':'left','text':txt}
+
+
+    q_cam0 = quat34.q_from_polarshift([0,0,-1],[1,0,0])
+    cam44_0 = quat34.qvfcyaTOcam44(q_cam0,v=[-6,0,0],f=2.0)
+    #app_state['camera'] = ['mat44':cam44_0]
+    #init_state = {'camera':{'mat44':cam44_0}, 'show_fps':True,
+    #              'current_task':0,'frames_left':packs[0][2], 'slowdown':1}
+
+
     cube = {**primitives.cube(), **{'viztype':'mesh'}}
     def ui_fn(branch, inputs):
         m44 = np.copy(branch.get('mat44', np.identity(4)))
