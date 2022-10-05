@@ -207,12 +207,72 @@ def sync_camera(log, cam44_old, cam44, cam_obj, screen_state, stretch=False):
     if cam44_old is cam44: # No change.
         return
 
-    match_camera_more = True # Lighting has a bug when this is disabled.
+    q0, v0, f0, cl0, y0, a0 = quat34.cam44TOqvfcya(cam44)
+    #manual_q = False # Set traits manually instead of setting the cam44.
+    #manual_v = False
+    manual_fov = True
+    manual_cl = True
+    #if manual_q:
+    #    q = q0
+    #else:
+    q = [np.sqrt(0.5),np.sqrt(0.5),0,0]
+    #if manual_v:
+    #    v = v0
+    #else:
+    v = [0,0,0]
+    if manual_fov:
+        f = f0
+    else:
+        f = 1.0
+    if manual_cl:
+        cl = cl0
+    else:
+        cl = [0.01,100]
+
+    # Aspect ratio et al.
+    w = screen_state[0]; h = screen_state[1]
+    theta = 2.0*np.arctan(1.0/f)*180.0/np.pi
+    fov_xy = [theta, theta]
+    if not stretch:
+        f1 = f*min(h,w)/max(h,w)
+        theta1 = theta1 = 2.0*np.arctan(1.0/f1)*180.0/np.pi
+        if w<=h:
+            fov_xy = [theta,theta1]
+        else:
+            fov_xy = [theta1,theta]
+
+    lens = base.camLens;
+    logged_fn_call(log, 'lens.setFov', lens, lens.setFov, fov_xy[0], fov_xy[1])
+    logged_fn_call(log, 'lens.setNearFar', lens, lens.setNearFar, cl[0], cl[1])
+    pandas_cam44 = quat34.qvfcyaTOcam44(q, v, f, cl) # No y or a term.
+
+
+    #cam44_panda = quat34.qvfcyaTOcam44(q, v, f, cl)
+
+    nodem44 = np.matmul(np.linalg.inv(cam44),pandas_cam44)
+    if nodem44[3,3]<0: # Sign fix.
+        nodem44 = -nodem44
+    nodem44 = nodem44/nodem44[3,3]
+
+    setPos = False
+    if setPos:
+        nodem44[0:3,3] = [0,0,0]
+    xform_obj = logged_fn_call(log, 'shapebuild.build_mat44', shapebuild, shapebuild.build_mat44, nodem44)
+    logged_fn_call(log, 'cam_obj.set_transform', cam_obj, cam_obj.set_transform, xform_obj)
+    #print('setting position:', v0)
+    if setPos:
+        logged_fn_call(log, 'cam_obj.setPos', cam_obj, cam_obj.setPos, v0[0],v0[1],v0[2])
+
+
+    return
+
+
+    manual_fov_and_q = True # Lighting has a bug when this is disabled.
 
     # The default camera points in the +y direction, while our ident q points in the -z direction:
     q = [np.sqrt(0.5),np.sqrt(0.5),0,0]; v = [0,0,0]
     lens = base.camLens;
-    if match_camera_more:
+    if manual_fov_and_q:
         q_unused,v_unused,f,cl,_,_ = quat34.cam44TOqvfcya(cam44)
     else:
         f = 1.0; cl = [0.01, 100]

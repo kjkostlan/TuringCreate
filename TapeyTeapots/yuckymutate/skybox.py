@@ -83,7 +83,7 @@ def set_up_gradient_skybox(the_pivot, showbase):
     horizon_color = (.5, 0, .5, 1.)  # optional
     ground_color = (0, 1., 0, 1.)
     background_gradient = create_gradient(sky_color, ground_color)#, horizon_color)
-    effect = CompassEffect.make(showbase.camera, CompassEffect.P_pos)
+    effect = CompassEffect.make(showbase.camera, CompassEffect.P_pos)#+CompassEffect.P_scale) #
     #the_pivot.set_effect(effect) # Applies to everything parented to pivot.
     background_gradient.set_effect(effect)
 
