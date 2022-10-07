@@ -12,7 +12,7 @@ import TapeyTeapots.meshops.quat34 as quat34
 
 ################ Helper functions ###################
 
-memoized = dict()
+memoized = dict() #Store old app states and other precomputations here.
 
 def all_event_types():
     # All valid event types.
@@ -30,6 +30,8 @@ def needs_collision_event_types():
 def setsfocus_event_types():
     # These set the focus.
     return ['click']
+
+
 
 ################ Raytracing our click ###################
 
@@ -61,8 +63,10 @@ def is_mouse_over(click_local_near, click_local_far, branch):
     return distance<=max_dist
 
 def responds_to1(ui):
+    #ui = branch.get('UI',{})
     # Everything that the current branch responseds to, not including any 'bearcubs'
     # Does not account for focus or hitbox.
+    # Returns a set.
     TODO
 
 def get_fnlevs(ui, current_lev, inputs):
@@ -87,52 +91,62 @@ def get_fnlevs(ui, current_lev, inputs):
 
 ################ Tree UI functions ###################
 
-def update_shadow(old_app, new_app, ui_shadows):
-    # Updates the shadow which stores where we respond to all active keys.
+def in_place_update_shadow(old_app, new_app, ui_shadows):
+    # Returns the updated shadow which stores where we respond to all active keys.
+    # Ui_shadow ['UI'] = True or False.
     # Uses diffs between the old_branch and the new_branch.
-    if old_branch==new_branch:
-        return
-    ui_types = ui_shadows.keys() # All valid keys are here.
-    vals = ui_shadows.values()
-    nUI = len(ui_types)
+    if old_app==old_app:
+        return ui_shadows # No changes.
+    #ui_types = ui_shadows.keys() # All valid keys are here.
+    #vals = ui_shadows.values()
+    #nUI = len(ui_types)
 
-    def extract_shadow_branches(new_branch):
-        # Deep dig into new_branch, 1:1 with ui_types
-        # Returns None if there is nothing there, instead of empty maps.
-        TODO
+    # TODO: we call this fn twice (once in thescenesync and once here):
+    diff_shadow = shadow.make_shadow([old_app, new_app], digf='diff') # Digs into additions and deletions.
 
-    def update_core(old_branch, new_branch, *ui_shadow_list): # ui_shadow_list is one ofr each type.
-        if old_branch is new_branch:
-            return # No change (optimization).
-        old_cubs = shadow.get1(old_branch,'bearcubs', default={}).keys()
-        new_cubs = shadow.get1(new_branch,'bearcubs', default={}).keys()
-        created_cubs = set(new_cubs)-set(old_cubs)
-        deleted_cubs = set(old_cubs)-set(new_cubs)
+    link_key = 'uicore__correspondingUIshadow'
+    ui_key = 'uicore__uikeyset'
+    any_ui_diff = [False] # if there is ANY UI diff.
+    #shadow.add_tree_link(ui_shadows, diff_shadow, link_key)
+    def set_ui_keyset1(old_branch, new_branch, dshadow_branch):
+        if 'UI' in old_branch or 'UI' in new_branch: # Skip both not having UI (presumably most objects).
+            active_ky_set_old = responds_to1(shadow.get1(old_branch, 'UI', {}))
+            active_ky_set = responds_to1(shadow.get1(new_branch, 'UI', {}))
+            if active_ky_set_old != active_ky_set:
+                any_ui_diff[0] = True
+            dshadow_branch[ui_key] = active_ky_set
+    shadow.multiwalk([old_branch, new_app, diff_shadow], diff_shadow, add_ui_keyset1)
 
-        TODO # This level.
+    if any_ui_diff[0]: # Optimization to skip non-ui changes.
+        def update_shadow1(dshadow_branch, ui_shadow_branch, ui_ty):
+            # Populate bearcubs:
+            if 'bearcubs' in dshadow_branch:
+                ui_shadow_branch['bearcubs'] = ui_shadow_branch.get('bearcubs',{})
+                for v in dshadow_branch['bearcubs'].values():
+                    if v not in ui_shadow_branch['bearcubs']:
+                        ui_shadow_branch['bearcubs'][v] = {'UI':False} # A deeper branch may set to True.
+            has_ui = ui_ty in dshadow_branch.get(ui_key, set())
+            ui_shadow_branch['UI'] = has_ui
+        ui_types = list(ui_shadows.keys())
 
-        for c in created_cubs:
-            created_shadows = extract_shadow_branches(new_branch['bearcubs'][c])
-            for i in range(nUI):
-                if created_shadows[i] is not None:
-                    TODO
-            TODO
-        TODO
+        def clean_ui_shadow(ui_shadow):
+            # Removes pathways to nowhere.
+            any_cubs = False # Recursivly this digs deeper.
+            if 'bearcubs' in ui_shadow:
+                for k in list(ui_shadow['bearcubs']).keys()
+                    if not clean_ui_shadow(ui_shadow['bearcubs'],k):
+                        del ui_shadow['bearcubs'][k]
+                    else:
+                        any_cubs = True
+                if not any:
+                    del ui_shadow['bearcubs']
+            x = bool(ui_shadow.get('UI', False))
+            return x
 
-        TODO # use ui_responses.
-
-        ui_responses = responds_to1(new_branch)
-        if new_branch is None or 'bearcubs' not in new_branch: # Removing bearcubs will remove everything recursivly.
-            for i in range(nUI):
-                if 'bearcubs' in ui_shadow_list:
-                    del ui_shadow_list['bearcubs']
-            TODO
-
-    TODO
-    walk_through = old_branch #TODO.
-
-    #responds_to1(branch)
-    TODO
+        for ui_type in ui_types:
+            upd1 = lambda(dshadow_branch, ui_shadow_branch): update_shadow1(dshadow_branch, ui_shadow_branch, ui_ty)
+            shadow.multiwalk([diff_shadow, ui_shadows[ui_type], ui_ty], diff_shadow, upd1, postwalk=False) #postwalk must be false.
+            clean_ui_shadow(ui_shadows[ui_type])
 
 def add_navigation_links(shadow, ancestor_key, us_bearcub_key):
     # Link to the ancestor within ui_shadow.
@@ -174,7 +188,7 @@ def apply_uis(new_app, ui_shadows, ui_fn_key, ancestor_key, us_bearcub_key, coll
 def get_focus_id(new_app, last_focusing_camera, last_focusing_input, ui_shadows, current_focus_id):
     # Id of the object bieng focused.
     # Call AFTER apply ui.
-    # If there are multible focii we use a heuristic to pick one. It is not strictly speaking the nearest collision.
+    # TODO: If there are multible focii we use a heuristic to pick one. It is not strictly speaking the nearest collision.
 
     setsfocus_event_types
     TODO
@@ -184,35 +198,34 @@ def get_focus_id(new_app, last_focusing_camera, last_focusing_input, ui_shadows,
 
 def global_everyframe(app_state, inputs, memoize_id=None):
     # If memoize_id is set, avoids checking everything by storing the app_state as old_app as well as other precomputes in said ID.
+    # Otherwise it has to check everything!
     kold = 'old_app'; kshd = 'shadows'; kbc = 'key_to_us1'; kan = 'ancestor_shadow'
     k44 = 'global_mat44'; kui = 'callback_fn'; kcl = 'local_collision'
     kfocus = 'uicore.focus';
     if type(memoize_id) is dict:
         memo = memoize_id
+    elif memoize_id is None:
+        memo = {} # A dev/null of sorts.
     else:
         memo = memoized.get(memoize_id, {})
 
-    if kshd in memo: # Partial update.
-        old_app = memo.get(kold,None)
-        shadows = update_shadow(old_app, app_state, memo[kshd])
-    else: # Complete refresh.
-        shadows = update_shadow(None, app_state, {})
+    memo[kshd] = in_place_update_shadow(memo.get(kold,None), app_state, memo.get(kshd,{}))
+    ui_shadows = memo[kshd]
 
-    vals = shadows.values()
-    vals = vals.sort()
-
-    for shadow in shadows.values():
-        add_navigation_links(shadow, kan, kbc)
-        add_global_m44s(app_state, shadow, k44)
-        clear_ui_fns(shadow)
-        add_ui_fns(app_state, shadow, kui)
+    vals = list(ui_shadows.values()); vals.sort()
+    for ui_shadow in vals:
+        add_navigation_links(ui_shadow, kan, kbc)
+        add_global_m44s(app_state, ui_shadow, k44)
+        clear_ui_fns(ui_shadow)
+        add_ui_fns(app_state, ui_shadow, kui)
         add_collisions_local(app_state, ui_shadow, inputs, kcl)
 
-    app_state = apply_uis(app_state, shadows, kui, kan, kbc, kcl, app_state.get(kfocus, None))
-
+    app_state = apply_uis(app_state, ui_shadows, kui, kan, kbc, kcl, app_state.get(kfocus, None))
     last_focus = app_state.get(kfocus, {}).copy()
     new_focus_id = get_focus_id(app_state, last_focus.get('last_focusing_camera', None), last_focus.get('last_focusing_input', None), shadows, last_focus.get('focus_id', None))
     last_focus['focus_id'] = new_focus_id
+
+    memo[kold] = app_state #Current for this frame = old for next frame.
 
     return app_state
 
@@ -301,9 +314,6 @@ def filter_shadow(event_tys, shadow_branches):
 #    #scenesync.fpwalk(trees, f, f_ixs=(0,1), digf='diff', digf_ixs=(0,1), digf_after=True, ck='bearcubs')
 #    scenesync.mutate_walk(None, new_tree, f, digf=None, retarget_here=None, digf_after=True)
 
-
-################ The main function ################
-
 def global_everyframe_old(app_state, inputs, memoize_id=None):
     # If memoize_id is set, avoids checking everything by keeping track of the app_state.
     if memoize_id is not None:
@@ -316,7 +326,7 @@ def global_everyframe_old(app_state, inputs, memoize_id=None):
 
     for evt_ty in all_event_types(): # Update
         shadows[evt_ty] = {}
-        update_shadow(old_branch, new_branch, event_ty, shadow[evt_ty])
+        shadow[evt_ty] = updated_shadow(old_branch, new_branch, event_ty, shadow[evt_ty])
 
     evt_tys_trigger = triggered_evt_types(inputs) # Always everyframe. Sometimes other event types as well.
 

@@ -319,7 +319,6 @@ def sync(old_state, new_state, screen_state, panda_objects, the_magic_pivot, log
     core_shadow = shadow.make_shadow([old_state, new_state], digf='diff')
     light_modifications = {}
     sync_objects(log, old_state, new_state, panda_objects, core_shadow, the_magic_pivot, light_modifications)
-    #shadow.add_tree_link(tree, shadow, link_key)
 
     m44globalkey = 'mat44_global'
     m44_shadow = make_m44_shadows(old_state, new_state)#, m44globalkey)

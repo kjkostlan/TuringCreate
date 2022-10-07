@@ -103,7 +103,8 @@ def multiwalk(trees, the_shadow, f, postwalk=True, ck='bearcubs', shadow_format_
     return out
 
 def add_tree_link(tree, the_shadow, link_key, ck='bearcubs'):
-    # Adds a link to the tree to the shadow. In-place modification.
+    # Adds a link (shadow->tree) to the shadow. In-place modification.
+    # None if the tree does not exist.
     def f(tree1, shadow1):
         shadow1[link_key] = tree1
     multiwalk([tree, the_shadow], the_shadow, f, ck=ck)
