@@ -569,18 +569,17 @@ def camera_demo():
     x = panda3dsetup.App(app_state, every_frame_func, panda_config={'view-frustum-cull':0})
 
 def ui_demo():
-    # A simple UI.
+    # For now a simple UI.
+    # Will be more complex in the fututer since we want to limit UIs.
     app_state = simple_init_state(make_random_mesh=False); app_state['show_fps'] = True
     txt = 'Shows buttons, sliders, and textfields (TODO get this demo working).\nBlender camera controls.'
     app_state['onscreen_text'] = {'xy':[-1.325,0.9],'align':'left','text':txt}
-
 
     q_cam0 = quat34.q_from_polarshift([0,0,-1],[1,0,0])
     cam44_0 = quat34.qvfcyaTOcam44(q_cam0,v=[-6,0,0],f=2.0)
     #app_state['camera'] = ['mat44':cam44_0]
     #init_state = {'camera':{'mat44':cam44_0}, 'show_fps':True,
     #              'current_task':0,'frames_left':packs[0][2], 'slowdown':1}
-
 
     cube = {**primitives.cube(), **{'viztype':'mesh'}}
     def ui_fn(branch, inputs):
