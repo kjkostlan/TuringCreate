@@ -16,24 +16,65 @@ def logged_fn_call(log, f_name, module, f_obj, *args):
 
 ########################################################
 
-def in_place_add_m44s_to_shadow(app, m44_shadow, m44globalkey):
-    # Adds m44s to the shadow in place.
+def in_place_add_m44s_to_shadow(old_app, new_app, m44_shadow, m44globalkey):
+    # Stores the key whenever there is change.
+    m44_unfiltered_key = 'scenesync__unfiltered_'+m44globalkey
+    m44_singlelevelonly_key = 'scenesync__singlelev_'+m44globalkey
     I44 = np.identity(4)
-    def f(branch, shadow_branch):
+
+    def hair_trigger_change(old_branch, new_branch):
+        if old_branch is None or new_branch is None:
+            return True
+        if old_branch is new_branch:
+            return False
+        for k in set(list(old_branch.keys())).union(set(list(new_branch.keys()))):
+            if k != 'bearcubs' and old_branch.get(k,None) is not new_branch.get(k,None):
+                return True
+        return False
+
+    def new_or_change_m44(old_branch, new_branch):
+        # Change m44 at this level? Or if the old branch does not exist.
+        if new_branch is None:
+            return False # Does this case even happen?
+        if old_branch is None:
+            return True
+        if new_branch.get('mat44',None) is not old_branch.get('mat44',None):
+            return True
+        return False
+    def f(old_branch, new_branch, shadow_branch):
+        add_m44_key = new_or_change_m44(old_branch, new_branch)
+        propigate = add_m44_key or m44globalkey in shadow_branch
+        #print('M44 is:',  old_branch.get('mat44',None), new_branch.get('mat44',None), add_m44_key, propigate)
+        if add_m44_key:
+            shadow_branch[m44globalkey] = shadow_branch[m44_unfiltered_key]
+        if hair_trigger_change(old_branch, new_branch): # Store the m44 to update i.e. a mesh. But DONT propigate it.
+            shadow_branch[m44_singlelevelonly_key] = shadow_branch[m44_unfiltered_key]
         if 'bearcubs' in shadow_branch:
             for ky in shadow_branch['bearcubs']:
                 sbranch1 = shadow_branch['bearcubs'][ky]
-                m44_bc = branch['bearcubs'][ky].get('mat44', I44)
-                sbranch1[m44globalkey] = np.matmul(shadow_branch[m44globalkey], m44_bc)
+                m44_bc = new_branch['bearcubs'][ky].get('mat44', I44)
+                sbranch1[m44_unfiltered_key] = np.matmul(shadow_branch[m44_unfiltered_key], m44_bc)
+                if propigate:
+                    sbranch1[m44globalkey] = sbranch1[m44_unfiltered_key]
 
-    m44_shadow[m44globalkey] = app.get('mat44', I44)
-    shadow.multiwalk([app, m44_shadow], m44_shadow, f, postwalk=False)
+    m44_shadow[m44_unfiltered_key] = new_app.get('mat44', I44)
+    shadow.multiwalk([old_app, new_app, m44_shadow], m44_shadow, f, postwalk=False) # False to propigate mat44.
+
+    # Delete the unfilterd key:
+    def deltmp(shadow_branch):
+        if m44_unfiltered_key in shadow_branch:
+            del shadow_branch[m44_unfiltered_key]
+        if m44_singlelevelonly_key in shadow_branch:
+            shadow_branch[m44globalkey] = shadow_branch[m44_singlelevelonly_key]
+            del shadow_branch[m44_singlelevelonly_key]
+
+    shadow.multiwalk([m44_shadow], m44_shadow, deltmp) # Not really a multiwalk...
 
 def make_m44_shadows(old_app, new_app):#, m44globalkey, filter=True):
     # Makes the m44 shadows.
     # The "standard" shadows are computed with: shadow.make_shadow([old_state, new_state], digf='diff')
     # But changing an m44 changes all children recursivly, so this will not do.
-       # (we give Panda3D the locations of the ).
+       # (we give Panda3D the locations oin global space, TODO not an ideal system).
 
     moved_branch_ids = set() # Everything that was moved (that existed before).
     def diff_dig_plus(old_branch, new_branch):
@@ -173,11 +214,11 @@ def sync_objects(log, old_render, new_render, panda, oldnew_shadow, pivot, modif
         sync_objects1(log, old_render_branch, new_render_branch, panda_branch, pivot, modified_light_map)
     shadow.multiwalk([old_render, new_render, panda, oldnew_shadow], oldnew_shadow, f, postwalk=False)
 
-def update_xforms(log, panda_objects, new_render, m44_shadow, modified_light_map, m44globalkey):
+def update_xforms(log, panda_objects, old_render, new_render, m44_shadow, modified_light_map, m44globalkey):
     # Use m44_shadow to update the xforms.
     # Call AFTER the updating but BEFORE sync_lighs (since it populated modified_light_map)
 
-    in_place_add_m44s_to_shadow(new_render, m44_shadow, m44globalkey)
+    in_place_add_m44s_to_shadow(old_render, new_render, m44_shadow, m44globalkey)
 
     def update_xforms1(panda_branch, new_render_branch, m44_shadow_branch):
         if panda_branch is None:
@@ -322,7 +363,7 @@ def sync(old_state, new_state, screen_state, panda_objects, the_magic_pivot, log
 
     m44globalkey = 'mat44_global'
     m44_shadow = make_m44_shadows(old_state, new_state)#, m44globalkey)
-    update_xforms(log, panda_objects, new_state, m44_shadow, light_modifications, m44globalkey)
+    update_xforms(log, panda_objects, old_state, new_state, m44_shadow, light_modifications, m44globalkey)
 
     sync_lights(log, panda_objects, light_modifications, the_magic_pivot)
     if 'camera' in old_state:
