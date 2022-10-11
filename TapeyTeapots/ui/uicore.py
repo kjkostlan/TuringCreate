@@ -32,7 +32,6 @@ def setsfocus_event_types():
     return ['click']
 
 
-
 ################ Raytracing our click ###################
 
 def hitbox2mesh(xxyyzz):
@@ -133,7 +132,7 @@ def in_place_update_shadow(old_app, new_app, ui_shadows):
             # Removes pathways to nowhere.
             any_cubs = False # Recursivly this digs deeper.
             if 'bearcubs' in ui_shadow:
-                for k in list(ui_shadow['bearcubs']).keys()
+                for k in list(ui_shadow['bearcubs']).keys():
                     if not clean_ui_shadow(ui_shadow['bearcubs'],k):
                         del ui_shadow['bearcubs'][k]
                     else:
@@ -144,7 +143,7 @@ def in_place_update_shadow(old_app, new_app, ui_shadows):
             return x
 
         for ui_type in ui_types:
-            upd1 = lambda(dshadow_branch, ui_shadow_branch): update_shadow1(dshadow_branch, ui_shadow_branch, ui_ty)
+            upd1 = lambda dshadow_branch, ui_shadow_branch: update_shadow1(dshadow_branch, ui_shadow_branch, ui_ty)
             shadow.multiwalk([diff_shadow, ui_shadows[ui_type], ui_ty], diff_shadow, upd1, postwalk=False) #postwalk must be false.
             clean_ui_shadow(ui_shadows[ui_type])
 
@@ -178,7 +177,9 @@ def add_collisions_local(new_app, ui_shadow, inputs, collision_key):
 def apply_uis(new_app, ui_shadows, ui_fn_key, ancestor_key, us_bearcub_key, collision_key, current_focus_id):
     # Call almost last. Returns the modified state.
     # Applies filters from collisions and focus.
-    needsfocus_event_types
+    def_need_focus = set(needsfocus_event_types())
+    def_need_coll = set(needs_collision_event_types())
+    #print('UI shadow:', ui_shadows)
     'needs_focus'
     needs_collision_event_types
     'needs_collision'
