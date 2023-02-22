@@ -1,3 +1,5 @@
+## Maturity: Way too young to use. Development: Queued.
+
 Turing Create aims to combine the world of graphical editing with programming. Blender is a wonderful tool, but in it and other tools the GUI and Python worlds are somewhat separated.
 
 The goal of Turing Create is to have a much tighter integration. GUI operations generate lines of code, vaguely similar to recording a macro, which can be then used and/or edited by any IDE.
